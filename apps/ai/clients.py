@@ -51,7 +51,7 @@ class OCRClient:
                 json={
                     "file_url": file_url,
                     "user_id": user_id,
-                    # "webhook_url": webhook_url,
+                    "webhook_url": webhook_url,
                     "meta_data": meta_data or {},
                 },
             )
@@ -61,9 +61,13 @@ class OCRClient:
     @staticmethod
     async def get_result(task_uid: str) -> str:
         async with _client(Settings.ai_base_url) as c:
-            resp = await c.get(f"/ocrs/{task_uid}/result")
+            resp = await c.get(f"/ocrs/{task_uid}")
             resp.raise_for_status()
-            return resp.text
+            data = resp.json()
+            if data.get("task_status") != "completed":
+                msg = f"OCR task {task_uid} not completed: {data.get('task_status')}"
+                raise ValueError(msg)
+            return data.get("result") or ""
 
 
 # ---------------------------------------------------------------------------
@@ -95,9 +99,13 @@ class TranscribeClient:
     @staticmethod
     async def get_result(task_uid: str) -> str:
         async with _client(Settings.ai_base_url) as c:
-            resp = await c.get(f"/transcribes/{task_uid}/result")
+            resp = await c.get(f"/transcribes/{task_uid}")
             resp.raise_for_status()
-            return resp.text
+            data = resp.json()
+            if data.get("task_status") != "completed":
+                msg = f"Transcribe task {task_uid} not completed: {data.get('task_status')}"
+                raise ValueError(msg)
+            return data.get("result") or ""
 
 
 # ---------------------------------------------------------------------------
