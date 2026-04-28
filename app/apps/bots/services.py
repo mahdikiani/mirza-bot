@@ -263,7 +263,7 @@ async def handle_content_action(
     # Load the saved message content
     try:
         uid = uuid.UUID(content_id)
-        saved_msg: models.Message = await models.Message.get_item(uid=uid)
+        saved_msg: models.Message = await models.Message.get_item(uid=uid, user_id=user_id)
         content = saved_msg.content
     except Exception:
         logging.exception("Content not found: %s", content_id)
