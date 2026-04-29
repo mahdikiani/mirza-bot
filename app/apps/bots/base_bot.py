@@ -118,9 +118,22 @@ class BaseBot(AsyncTeleBot):
 class TelegramBot(BaseBot, metaclass=singleton.Singleton):
     token = os.getenv("TELEGRAM_TOKEN")
     bot_type = "telegram"
-    me = "uln_ai_bot"  # todo change the name
+    me = "uln_ai_bot"  # fallback default
     webhook_route = "uln_ai_bot"
     needs_polling = True
+    _me_resolved: bool = False
+
+    async def resolve_me(self) -> None:
+        """Fetch the bot's username from the Telegram API and cache it."""
+        if self._me_resolved:
+            return
+        try:
+            bot_info = await self.get_me()
+            if bot_info and bot_info.username:
+                self.me = bot_info.username
+                self._me_resolved = True
+        except Exception:
+            logging.exception("Failed to resolve bot name via getMe, using fallback")
 
 
 # class BaleBot(BaseBot, metaclass=singleton.Singleton):

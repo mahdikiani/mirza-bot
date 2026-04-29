@@ -383,19 +383,48 @@ async def inline_query(
     import uuid
 
     from apps.accounts.handlers import get_usso_user
+    from apps.ai.clients import AIChatClient
 
     credentials = {
         "identifier_type": "telegram_id",
         "identifier": f"{inline_query.from_user.id}",
     }
-    await get_usso_user(credentials)
+    user = await get_usso_user(credentials)
+
+    query_text = inline_query.query or ""
+    if not query_text.strip():
+        # Req 17.4: empty query → show guidance
+        results = [
+            async_telebot.types.InlineQueryResultArticle(
+                id=str(uuid.uuid4()),
+                title="متن خود را تایپ کنید",
+                input_message_content=async_telebot.types.InputTextMessageContent(
+                    message_text="لطفاً متن سوال خود را تایپ کنید."
+                ),
+            )
+        ]
+        await bot.answer_inline_query(inline_query.id, results, cache_time=10)
+        return
+
+    # Req 17.1, 17.2: get real AI response
+    try:
+        session = await AIChatClient.get_or_create_session(
+            user_id=str(user.uid),
+            chat_id=f"inline:{user.uid}",
+        )
+        session_id = session.get("uid") or session.get("id")
+        ai_response = await AIChatClient.send_message(session_id, query_text)
+    except Exception:
+        # Req 17.3: on error return friendly message instead of crashing
+        logging.exception("Inline query AI error")
+        ai_response = "خطایی در دریافت پاسخ رخ داد."
 
     results = [
         async_telebot.types.InlineQueryResultArticle(
             id=str(uuid.uuid4()),
-            title="پاسخ با هوش مصنوعی",
+            title="پاسخ هوش مصنوعی",
             input_message_content=async_telebot.types.InputTextMessageContent(
-                message_text=f"پاسخ هوش مصنوعی (⏳)\n\n{inline_query.query}"
+                message_text=ai_response[:4096]
             ),
             reply_markup=keyboards.inline_keyboard(bot.link),
         )

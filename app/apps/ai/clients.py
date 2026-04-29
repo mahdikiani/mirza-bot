@@ -83,6 +83,7 @@ class TranscribeClient:
         file_url: str,
         user_id: str,
         webhook_url: str,
+        meta_data: dict | None = None,
     ) -> dict:
         async with _client(Settings.ai_base_url) as c:
             resp = await c.post(
@@ -91,6 +92,7 @@ class TranscribeClient:
                     "file_url": file_url,
                     "user_id": user_id,
                     "webhook_url": webhook_url,
+                    "meta_data": meta_data or {},
                 },
             )
             resp.raise_for_status()
@@ -230,6 +232,17 @@ class MediaClient:
                 json={"public_permission": {"permission": 10}},
             )
             patch_resp.raise_for_status()
-            url: str = upload_resp.json().get("url", "")
+
+            # FIX (Req 16.1): prefer URL from patch response
+            url: str = patch_resp.json().get("url") or upload_resp.json().get("url", "")
+            if not patch_resp.json().get("url"):
+                logging.warning(
+                    "patch_resp missing url field for %s, falling back to upload_resp",
+                    filename,
+                )
+            if not url:
+                raise ValueError(
+                    f"MediaClient.upload: no URL returned for file {filename}"
+                )
             logging.info("Uploaded %s -> %s", filename, url)
             return url

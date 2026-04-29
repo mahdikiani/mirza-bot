@@ -38,7 +38,11 @@ async def _get_or_create_session(message: schemas.MessageOwned) -> str | None:
         chat_id=_session_chat_id(message),
         engine_config=engine_config,
     )
-    return session.get("uid") or session.get("id")
+    session_id = session.get("uid") or session.get("id")
+    if not session_id:
+        logging.error("get_or_create_session returned no uid/id: %s", session)
+        return None
+    return session_id
 
 
 async def reset_chat_session(
@@ -169,6 +173,7 @@ async def submit_transcribe(
         file_url=file_url,
         user_id=user_id,
         webhook_url=webhook_url,
+        meta_data=meta_data,
     )
 
     # Persist metadata so the webhook knows where to send the result

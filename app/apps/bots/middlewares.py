@@ -50,12 +50,34 @@ class UserMiddleware(async_telebot.BaseMiddleware):
     async def pre_process_callback_query(
         self, call: async_telebot.types.CallbackQuery, data: object
     ) -> None:
-        await self.pre_process_message(call.message, data)
-        # Propagate user/profile to the CallbackQuery object itself
+        # FIX (Req 18.1-18.3): resolve user directly from call.from_user,
+        # not from call.message.from_user — handles call.message = None safely.
+        from_user = call.from_user
+        credentials = {
+            "identifier_type": "telegram_id",
+            "identifier": f"{from_user.id}",
+        }
+        try:
+            user = await get_usso_user(credentials)
+        except Exception:
+            logging.exception("Failed to resolve USSO user for callback %s", credentials)
+            user = None
+
         call_owned: schemas.CallbackQueryOwned = call  # type: ignore[assignment]
-        msg_owned: schemas.MessageOwned = call.message  # type: ignore[assignment]
-        call_owned.user = msg_owned.user
-        call_owned.profile = msg_owned.profile
+        call_owned.user = user
+        call_owned.profile = None
+
+        if user is not None:
+            try:
+                call_owned.profile = await get_user_profile(str(user.uid))
+            except Exception:
+                logging.exception("Failed to load profile for user %s", user.uid)
+                call_owned.profile = None
+
+        # Propagate to call.message only if it exists
+        if call.message is not None:
+            call.message.user = user
+            call.message.profile = call_owned.profile
 
     async def post_process_message(
         self,

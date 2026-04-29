@@ -34,6 +34,20 @@ def mongo_client() -> Generator[object]:
 # Async setup function to initialize the database with Beanie
 async def init_db(mongo_client: object) -> None:
     database = mongo_client.get_database("test_db")  # type: ignore
+
+    # Patch mongomock Database.list_collection_names to accept extra kwargs
+    # from newer beanie versions (authorizedCollections, nameOnly).
+    import mongomock  # type: ignore[import-untyped]
+
+    _orig = mongomock.Database.list_collection_names
+
+    def _compat_list(self: object, *args: object, **kwargs: object) -> list[str]:  # noqa: ANN401
+        kwargs.pop("authorizedCollections", None)
+        kwargs.pop("nameOnly", None)
+        return _orig(self, *args, **kwargs)
+
+    mongomock.Database.list_collection_names = _compat_list  # type: ignore[assignment]
+
     await init_beanie(
         database=database,  # type: ignore
         document_models=get_all_subclasses(base_mongo_models.BaseEntity),

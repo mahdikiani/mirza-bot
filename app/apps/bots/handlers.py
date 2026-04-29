@@ -110,6 +110,10 @@ class BotHandler(metaclass=singleton.Singleton):
                 inline_query, func=lambda _: True, pass_bot=True
             )
 
+        # Req 20.1: resolve bot name dynamically via getMe
+        if hasattr(bot, "resolve_me"):
+            await bot.resolve_me()
+
 
 @basic.try_except_wrapper
 async def update_bot(
