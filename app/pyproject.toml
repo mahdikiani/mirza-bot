@@ -10,6 +10,7 @@ dependencies = [
     "fastapi-mongo-base[usso]>=1.0.41",
     "httpx>=0.28.1",
     "python-dotenv>=1.0.0",
+    "redis>=7.4.0",
     "telegram-bale-bot[aiohttp]>=4.27.0",
     "telethon>=1.42.0",
     "usso>=0.28.41",
