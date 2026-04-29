@@ -100,11 +100,31 @@ async def _extract_text_attachment(
     ext = file_name.rsplit(".", 1)[-1].lower() if "." in file_name else ""
 
     TEXT_EXTENSIONS = {
-        "md", "txt", "csv", "json", "xml", "yaml", "yml", "html", "htm", "rst",
+        "md",
+        "txt",
+        "csv",
+        "json",
+        "xml",
+        "yaml",
+        "yml",
+        "html",
+        "htm",
+        "rst",
     }
     SKIP_EXTENSIONS = {
-        "pdf", "jpg", "jpeg", "png", "gif", "webp",
-        "mp3", "ogg", "mp4", "mov", "avi", "mkv", "webm",
+        "pdf",
+        "jpg",
+        "jpeg",
+        "png",
+        "gif",
+        "webp",
+        "mp3",
+        "ogg",
+        "mp4",
+        "mov",
+        "avi",
+        "mkv",
+        "webm",
     }
 
     if ext in SKIP_EXTENSIONS:
@@ -293,7 +313,9 @@ async def send_md_result(
     )
 
     if len(result) <= threshold:
-        keyboard = keyboards.md_result_keyboard(content_id, content_type, media_url=None)
+        keyboard = keyboards.md_result_keyboard(
+            content_id, content_type, media_url=None
+        )
         await bot.edit_message_text(
             text=result[:4096],
             chat_id=chat_id,
@@ -341,7 +363,9 @@ async def handle_content_action(
 
     try:
         uid = uuid.UUID(content_id)
-        saved_msg: models.Message = await models.Message.get_item(uid=uid)
+        saved_msg: models.Message = await models.Message.get_item(
+            uid=uid, user_id=user_id
+        )
         content = saved_msg.content
     except Exception:
         logging.exception("Content not found: %s", content_id)
