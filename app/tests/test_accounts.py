@@ -19,7 +19,9 @@ async def _clear_profile_cache() -> None:
     await get_user_profile.cache.clear()
 
 
-def _mock_response(*, status_code: int = 200, json_data: dict | None = None) -> MagicMock:
+def _mock_response(
+    *, status_code: int = 200, json_data: dict | None = None
+) -> MagicMock:
     resp = MagicMock()
     resp.status_code = status_code
     resp.json.return_value = json_data or {}

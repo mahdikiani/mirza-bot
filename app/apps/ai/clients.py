@@ -105,7 +105,8 @@ class TranscribeClient:
             resp.raise_for_status()
             data = resp.json()
             if data.get("task_status") != "completed":
-                msg = f"Transcribe task {task_uid} not completed: {data.get('task_status')}"
+                status = data.get("task_status")
+                msg = f"Transcribe task {task_uid} not completed: {status}"
                 raise ValueError(msg)
             return data.get("result") or ""
 

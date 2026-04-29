@@ -14,7 +14,9 @@ import pytest
 from apps.ai.clients import MediaClient
 
 
-def _mock_response(*, status_code: int = 200, json_data: dict | None = None) -> MagicMock:
+def _mock_response(
+    *, status_code: int = 200, json_data: dict | None = None
+) -> MagicMock:
     resp = MagicMock()
     resp.status_code = status_code
     resp.json.return_value = json_data or {}
@@ -56,7 +58,9 @@ async def test_upload_url_from_patch_resp() -> None:
 
 
 @pytest.mark.asyncio
-async def test_upload_fallback_to_upload_resp_url(caplog: pytest.LogCaptureFixture) -> None:
+async def test_upload_fallback_to_upload_resp_url(
+    caplog: pytest.LogCaptureFixture,
+) -> None:
     """Req 16.2: Falls back to upload_resp URL when patch_resp has no url, with warning."""
     upload_resp = _mock_response(
         json_data={"uid": "file-456", "url": "https://media.example.com/upload-url"},

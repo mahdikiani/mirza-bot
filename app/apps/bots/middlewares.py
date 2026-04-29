@@ -60,7 +60,9 @@ class UserMiddleware(async_telebot.BaseMiddleware):
         try:
             user = await get_usso_user(credentials)
         except Exception:
-            logging.exception("Failed to resolve USSO user for callback %s", credentials)
+            logging.exception(
+                "Failed to resolve USSO user for callback %s", credentials
+            )
             user = None
 
         call_owned: schemas.CallbackQueryOwned = call  # type: ignore[assignment]

@@ -9,7 +9,6 @@ Detects the type of URL and extracts its content:
 
 from __future__ import annotations
 
-import logging
 import re
 
 import httpx
@@ -46,6 +45,7 @@ def _instagram_shortcode(url: str) -> str | None:
 # YouTube transcript
 # ---------------------------------------------------------------------------
 
+
 async def _fetch_youtube(video_id: str) -> str:
     """Fetch transcript via youtube-transcript.io REST API."""
     api_key = Settings.youtube_transcript_api_key
@@ -75,6 +75,7 @@ async def _fetch_youtube(video_id: str) -> str:
 # Twitter / X
 # ---------------------------------------------------------------------------
 
+
 async def _fetch_twitter(tweet_id: str) -> str:
     api_key = Settings.rapidapi_key
     if not api_key:
@@ -94,7 +95,8 @@ async def _fetch_twitter(tweet_id: str) -> str:
 
     result = data.get("result") or {}
     tweet = (
-        result.get("data", {})
+        result
+        .get("data", {})
         .get("tweetResult", {})
         .get("result", {})
         .get("legacy", {})
@@ -107,6 +109,7 @@ async def _fetch_twitter(tweet_id: str) -> str:
 # ---------------------------------------------------------------------------
 # Instagram
 # ---------------------------------------------------------------------------
+
 
 async def _fetch_instagram(shortcode: str) -> str:
     api_key = Settings.rapidapi_key
@@ -136,6 +139,7 @@ async def _fetch_instagram(shortcode: str) -> str:
 # Generic webpage via Jina Reader
 # ---------------------------------------------------------------------------
 
+
 async def _fetch_webpage(url: str) -> str:
     """Use Jina Reader (r.jina.ai) to get clean Markdown from any webpage."""
     jina_url = f"https://r.jina.ai/{url}"
@@ -153,6 +157,7 @@ async def _fetch_webpage(url: str) -> str:
 # ---------------------------------------------------------------------------
 # Public entry point
 # ---------------------------------------------------------------------------
+
 
 async def fetch(url: str) -> tuple[str, str]:
     """Fetch content from a URL.

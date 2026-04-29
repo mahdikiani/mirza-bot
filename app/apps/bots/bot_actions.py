@@ -302,7 +302,18 @@ async def document(message: schemas.MessageOwned, bot: base_bot.BaseBot) -> None
     ext = file_name.rsplit(".", 1)[-1].lower()
     if ext in ("mp4", "mov", "avi", "mkv", "webm"):
         await media_transcribe(message, bot, doc.file_id, file_name, "video")
-    elif ext in ("md", "txt", "csv", "json", "xml", "yaml", "yml", "html", "htm", "rst"):
+    elif ext in (
+        "md",
+        "txt",
+        "csv",
+        "json",
+        "xml",
+        "yaml",
+        "yml",
+        "html",
+        "htm",
+        "rst",
+    ):
         # Plain-text files: read content and send to AI chat as context
         await prompt(message, bot)
     else:

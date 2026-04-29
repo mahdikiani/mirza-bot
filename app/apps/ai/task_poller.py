@@ -134,9 +134,7 @@ async def _poll_once() -> None:
 
         except Exception as exc:
             # A 4xx/5xx likely means still processing — log at debug level
-            logging.debug(
-                "Poller: task %s still pending (%s)", task["task_uid"], exc
-            )
+            logging.debug("Poller: task %s still pending (%s)", task["task_uid"], exc)
 
 
 async def run_task_poller() -> None:

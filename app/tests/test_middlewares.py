@@ -156,7 +156,9 @@ async def test_usso_failure_sets_user_none() -> None:
 
 
 @pytest.mark.asyncio
-async def test_profile_failure_sets_profile_none(caplog: pytest.LogCaptureFixture) -> None:
+async def test_profile_failure_sets_profile_none(
+    caplog: pytest.LogCaptureFixture,
+) -> None:
     """When get_user_profile raises, profile is None but user is still set."""
     fake_user = _make_user(uid="profile-fail-uid")
     call = _make_callback_query()
