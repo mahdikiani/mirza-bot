@@ -47,6 +47,11 @@ class Settings(config.Settings):
     # Viewer base URL for long MD results
     viewer_base_url: str = os.getenv("VIEWER_BASE_URL", "https://view.uln.me")
 
+    # External API keys for URL content fetching
+    rapidapi_key: str | None = os.getenv("RAPIDAPI_KEY")
+    youtube_transcript_api_key: str | None = os.getenv("YOUTUBE_TRANSCRIPT_API_KEY")
+    jina_api_key: str | None = os.getenv("JINA_API_KEY")  # optional, raises rate limit
+
     # Set to "1" to skip webhook registration and run all bots in polling mode.
     # Useful for local development or environments where inbound HTTPS is unavailable.
     polling_mode: bool = os.getenv("POLLING_MODE", "0") == "1"

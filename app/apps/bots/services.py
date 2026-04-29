@@ -1,7 +1,6 @@
 """Business logic layer — all external service calls go through internal clients."""
 
 import logging
-from io import BytesIO
 
 from apps.ai.clients import (
     AIChatClient,
@@ -64,6 +63,64 @@ async def reset_chat_session(
 # ---------------------------------------------------------------------------
 
 
+async def _build_reply_chain(
+    message: schemas.MessageOwned,
+    bot: base_bot.BaseBot,
+) -> str:
+    """Walk the reply chain and build a combined message string for the LLM."""
+    parts: list[str] = []
+    current = message
+
+    while current:
+        text = current.text or current.caption or ""
+        attachment = await _extract_text_attachment(current, bot)
+        if attachment:
+            text = f"{text}\n\n[پیوست]:\n{attachment}".strip()
+        if text:
+            sender = "کاربر"
+            if current.from_user and current.from_user.is_bot:
+                sender = "دستیار"
+            parts.append(f"[{sender}]: {text}")
+        current = getattr(current, "reply_to_message", None)
+
+    parts.reverse()
+    return "\n\n".join(parts)
+
+
+async def _extract_text_attachment(
+    message: schemas.MessageOwned,
+    bot: base_bot.BaseBot,
+) -> str | None:
+    """If the message has a text-like document (md/txt/etc.), download and return its content."""
+    doc = getattr(message, "document", None)
+    if not doc:
+        return None
+
+    file_name: str = doc.file_name or ""
+    ext = file_name.rsplit(".", 1)[-1].lower() if "." in file_name else ""
+
+    TEXT_EXTENSIONS = {
+        "md", "txt", "csv", "json", "xml", "yaml", "yml", "html", "htm", "rst",
+    }
+    SKIP_EXTENSIONS = {
+        "pdf", "jpg", "jpeg", "png", "gif", "webp",
+        "mp3", "ogg", "mp4", "mov", "avi", "mkv", "webm",
+    }
+
+    if ext in SKIP_EXTENSIONS:
+        return None
+    if ext not in TEXT_EXTENSIONS and ext:
+        return None
+
+    try:
+        file_info = await bot.get_file(doc.file_id)
+        raw = await bot.download_file(file_info.file_path)
+        return raw.decode("utf-8", errors="replace")
+    except Exception:
+        logging.exception("Failed to download text attachment %s", file_name)
+        return None
+
+
 async def ai_chat_response(
     message: schemas.MessageOwned,
     bot: base_bot.BaseBot,
@@ -72,7 +129,16 @@ async def ai_chat_response(
     if not session_id:
         return "کاربر شناسایی نشد."
     try:
-        return await AIChatClient.send_message(session_id, message.text or "")
+        if getattr(message, "reply_to_message", None):
+            content = await _build_reply_chain(message, bot)
+        else:
+            text = message.text or message.caption or ""
+            attachment = await _extract_text_attachment(message, bot)
+            if attachment:
+                text = f"{text}\n\n[پیوست]:\n{attachment}".strip()
+            content = text
+
+        return await AIChatClient.send_message(session_id, content)
     except Exception:
         logging.exception("AI chat error for session %s", session_id)
         return "خطایی در ارتباط با سرویس هوش مصنوعی رخ داد."
@@ -176,7 +242,6 @@ async def submit_transcribe(
         meta_data=meta_data,
     )
 
-    # Persist metadata so the webhook knows where to send the result
     msg = models.Message(
         user_id=user_id or "unknown",
         content="",
@@ -206,6 +271,9 @@ async def submit_transcribe(
 # Sending MD results (length-aware)
 # ---------------------------------------------------------------------------
 
+# Voice/transcribe: send as text if fits in 2 Telegram messages
+TRANSCRIBE_TEXT_THRESHOLD_CHARS = 2 * 4096
+# OCR/action results: send as text if fits in one viewer-page worth
 MD_FILE_THRESHOLD_CHARS = 8192
 
 
@@ -218,34 +286,40 @@ async def send_md_result(
     content_type: str,
     user_id: str | None = None,
 ) -> None:
-    keyboard = keyboards.md_result_keyboard(content_id, content_type)
+    threshold = (
+        TRANSCRIBE_TEXT_THRESHOLD_CHARS
+        if content_type in ("voice", "audio", "video")
+        else MD_FILE_THRESHOLD_CHARS
+    )
 
-    if len(result) <= MD_FILE_THRESHOLD_CHARS:
+    if len(result) <= threshold:
+        keyboard = keyboards.md_result_keyboard(content_id, content_type, media_url=None)
         await bot.edit_message_text(
             text=result[:4096],
             chat_id=chat_id,
             message_id=response_message_id,
             reply_markup=keyboard,
         )
-        if len(result) > 4096:
-            # Send the rest as additional messages without keyboard
-            remaining = result[4096:]
-            while remaining:
-                await bot.send_message(chat_id, remaining[:4096])
-                remaining = remaining[4096:]
+        remaining = result[4096:]
+        while remaining:
+            await bot.send_message(chat_id, remaining[:4096])
+            remaining = remaining[4096:]
     else:
-        # Send as .md file attachment
-        md_bytes = BytesIO(result.encode("utf-8"))
-        md_bytes.name = f"result_{content_id[:8]}.md"
+        md_bytes = result.encode("utf-8")
+        file_name = f"result_{content_id[:8]}.md"
+        try:
+            media_url = await _upload_file(md_bytes, file_name)
+        except Exception:
+            logging.exception("Failed to upload MD result to media service")
+            media_url = None
+
+        keyboard = keyboards.md_result_keyboard(
+            content_id, content_type, media_url=media_url
+        )
         await bot.edit_message_text(
-            text="نتیجه آماده شد:",
+            text="نتیجه آماده شد. برای مشاهده کامل روی دکمه زیر کلیک کنید:",
             chat_id=chat_id,
             message_id=response_message_id,
-        )
-        await bot.send_document(
-            chat_id,
-            md_bytes,
-            caption="فایل نتیجه",
             reply_markup=keyboard,
         )
 
@@ -265,10 +339,9 @@ async def handle_content_action(
 
     user_id = str(message.user.uid) if message.user else None
 
-    # Load the saved message content
     try:
         uid = uuid.UUID(content_id)
-        saved_msg: models.Message = await models.Message.get_item(uid=uid, user_id=user_id)
+        saved_msg: models.Message = await models.Message.get_item(uid=uid)
         content = saved_msg.content
     except Exception:
         logging.exception("Content not found: %s", content_id)
@@ -279,7 +352,6 @@ async def handle_content_action(
         language = message.profile.profile_data.engine_config.language
 
     if action == "chat":
-        # Set content as context in the chat session and notify user
         session_id = await _get_or_create_session(message)
         if session_id:
             await AIChatClient.set_context(session_id, content, "document")

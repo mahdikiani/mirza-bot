@@ -19,7 +19,11 @@ def main_keyboard() -> ReplyKeyboardMarkup:
     return markup
 
 
-def md_result_keyboard(content_id: str, content_type: str) -> InlineKeyboardMarkup:
+def md_result_keyboard(
+    content_id: str,
+    content_type: str,
+    media_url: str | None = None,
+) -> InlineKeyboardMarkup:
     """Inline keyboard shown below every MD result (OCR / transcribe / video)."""
     markup = InlineKeyboardMarkup(row_width=2)
     markup.add(
@@ -34,7 +38,14 @@ def md_result_keyboard(content_id: str, content_type: str) -> InlineKeyboardMark
         InlineKeyboardButton("ترجمه", callback_data=f"action:translate:{content_id}"),
         InlineKeyboardButton("چت", callback_data=f"action:chat:{content_id}"),
     )
-    if content_type in ("voice", "video", "audio"):
+    # Viewer button: for large results uploaded to media, use the media URL;
+    # for voice/video always show viewer link
+    if media_url:
+        viewer_url = f"{Settings.viewer_base_url}?url={media_url}"
+        markup.add(
+            InlineKeyboardButton("مشاهده آنلاین 🔗", url=viewer_url),
+        )
+    elif content_type in ("voice", "video", "audio"):
         markup.add(
             InlineKeyboardButton(
                 "مشاهده آنلاین",

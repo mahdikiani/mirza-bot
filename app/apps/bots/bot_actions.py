@@ -5,7 +5,8 @@ Message routing:
   voice/audio    -> Transcribe -> MD result with inline keyboard
   video          -> Transcribe -> MD result with inline keyboard
   photo/document -> OCR       -> MD result with inline keyboard
-  URL            -> AI Chat with the URL as context
+  text/md/...    -> AI Chat with file content as context
+  URL            -> fetch content, then AI Chat
 
 Group chats: bot only responds when mentioned (@bot_username) or replied to.
 """
@@ -22,10 +23,6 @@ from apps.bots import base_bot, keyboards, schemas, services
 from utils import texttools
 
 LARGE_FILE_THRESHOLD_BYTES = 20 * 1024 * 1024  # 20 MB
-
-# Maximum characters before sending an .md file instead of inline text
-# (~2 Telegram messages worth of text)
-MD_FILE_THRESHOLD_CHARS = 8192
 
 COMMAND_KEY: dict[str, str] = {
     "/start": "start",
@@ -153,7 +150,11 @@ async def _download_file(
 ) -> tuple[BytesIO, bool]:
     """Return (file_bytes, used_telethon)."""
     file_info = await bot.get_file(file_id)
-    if file_info.file_size and file_info.file_size > LARGE_FILE_THRESHOLD_BYTES:
+    if (
+        bot.bot_type == "telegram"
+        and file_info.file_size
+        and file_info.file_size > LARGE_FILE_THRESHOLD_BYTES
+    ):
         data = await bot.get_file_telethon(message.chat.id, message.message_id)
         return data, True
     raw = await bot.download_file(file_info.file_path)
@@ -205,6 +206,60 @@ async def video(message: schemas.MessageOwned, bot: base_bot.BaseBot) -> None:
 
 
 # ---------------------------------------------------------------------------
+# URL content fetching
+# ---------------------------------------------------------------------------
+
+_URL_SOURCE_LABELS = {
+    "youtube": "یوتیوب 🎬",
+    "twitter": "توییتر/X 🐦",
+    "instagram": "اینستاگرام 📸",
+    "webpage": "صفحه وب 🌐",
+}
+
+
+async def url_content(
+    message: schemas.MessageOwned,
+    bot: base_bot.BaseBot,
+    url: str,
+) -> None:
+    from apps.bots.url_fetcher import fetch as fetch_url
+
+    response = await bot.reply_to(message, "در حال بارگذاری لینک...")
+    try:
+        content, source_type = await fetch_url(url)
+    except Exception:
+        logging.exception("Failed to fetch URL: %s", url)
+        await bot.edit_message_text(
+            text="متأسفانه نتوانستم محتوای این لینک را بارگذاری کنم.",
+            chat_id=message.chat.id,
+            message_id=response.message_id,
+        )
+        return
+
+    label = _URL_SOURCE_LABELS.get(source_type, "لینک")
+    await bot.edit_message_text(
+        text=f"محتوای {label} دریافت شد. در حال پردازش...",
+        chat_id=message.chat.id,
+        message_id=response.message_id,
+    )
+
+    original_text = message.text or ""
+    user_question = original_text.replace(url, "").strip()
+    if user_question:
+        message.text = f"{user_question}\n\n[محتوای لینک]:\n{content}"
+    else:
+        message.text = f"[محتوای {label}]:\n{content}\n\nخلاصه‌ای از این محتوا بده."
+
+    result = await services.ai_chat_response(message=message, bot=bot)
+    if result:
+        await bot.edit_message_text(
+            text=result[:4096],
+            chat_id=message.chat.id,
+            message_id=response.message_id,
+        )
+
+
+# ---------------------------------------------------------------------------
 # Photo / Document -> OCR
 # ---------------------------------------------------------------------------
 
@@ -245,9 +300,11 @@ async def document(message: schemas.MessageOwned, bot: base_bot.BaseBot) -> None
     doc = message.document
     file_name = doc.file_name or "document.pdf"
     ext = file_name.rsplit(".", 1)[-1].lower()
-    # Videos uploaded as documents also go through transcribe
     if ext in ("mp4", "mov", "avi", "mkv", "webm"):
         await media_transcribe(message, bot, doc.file_id, file_name, "video")
+    elif ext in ("md", "txt", "csv", "json", "xml", "yaml", "yml", "html", "htm", "rst"):
+        # Plain-text files: read content and send to AI chat as context
+        await prompt(message, bot)
     else:
         await media_ocr(message, bot, doc.file_id, file_name, "document")
 
@@ -259,14 +316,11 @@ async def document(message: schemas.MessageOwned, bot: base_bot.BaseBot) -> None
 
 @basic.try_except_wrapper
 async def message(message: schemas.MessageOwned, bot: base_bot.BaseBot) -> None:
-    # Guard: group chats only respond when mentioned
-    if _is_group(message):
-        bot_me = await bot.get_me()
-        if not _bot_is_mentioned(message, bot_me.username or bot.me):
-            return
-
-    # Strip bot mention from text before processing
     bot_me = await bot.get_me()
+
+    if _is_group(message) and not _bot_is_mentioned(message, bot_me.username or bot.me):
+        return
+
     if message.text and bot_me.username:
         message.text = message.text.replace(f"@{bot_me.username}", "").strip()
 
@@ -293,9 +347,7 @@ async def message(message: schemas.MessageOwned, bot: base_bot.BaseBot) -> None:
         return await command(message, bot)
 
     if texttools.is_valid_url(text):
-        # Treat URLs as chat context
-        message.text = f"اطلاعاتی درباره این لینک بده: {text}"
-        return await prompt(message, bot)
+        return await url_content(message, bot, text)
 
     return await prompt(message, bot)
 
@@ -393,7 +445,6 @@ async def inline_query(
 
     query_text = inline_query.query or ""
     if not query_text.strip():
-        # Req 17.4: empty query → show guidance
         results = [
             async_telebot.types.InlineQueryResultArticle(
                 id=str(uuid.uuid4()),
@@ -406,7 +457,6 @@ async def inline_query(
         await bot.answer_inline_query(inline_query.id, results, cache_time=10)
         return
 
-    # Req 17.1, 17.2: get real AI response
     try:
         session = await AIChatClient.get_or_create_session(
             user_id=str(user.uid),
@@ -415,7 +465,6 @@ async def inline_query(
         session_id = session.get("uid") or session.get("id")
         ai_response = await AIChatClient.send_message(session_id, query_text)
     except Exception:
-        # Req 17.3: on error return friendly message instead of crashing
         logging.exception("Inline query AI error")
         ai_response = "خطایی در دریافت پاسخ رخ داد."
 
