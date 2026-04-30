@@ -506,17 +506,19 @@ async def callback_answer(
 async def callback_action(
     call: schemas.CallbackQueryOwned, bot: base_bot.BaseBot
 ) -> None:
-    """Handle action:summarize/structure/translate/chat:{content_id}."""
-    parts = call.data.split(":", 2)
-    if len(parts) != 3:
+    """Handle action:summarize/structure/translate/chat
+
+    Content is read directly from call.message (text or .md document).
+    """
+    parts = call.data.split(":", 1)
+    if len(parts) != 2:
         return
-    _, action, content_id = parts
+    _, action = parts
 
     response = await bot.reply_to(call.message, "در حال پردازش...")
     try:
         result = await services.handle_content_action(
             action=action,
-            content_id=content_id,
             message=call.message,
             bot=bot,
         )
@@ -526,7 +528,6 @@ async def callback_action(
                 chat_id=call.message.chat.id,
                 response_message_id=response.message_id,
                 result=result,
-                content_id=content_id,
                 content_type=action,
                 user_id=str(call.message.user.uid) if call.message.user else None,
             )

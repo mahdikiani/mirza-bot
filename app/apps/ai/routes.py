@@ -24,8 +24,8 @@ class TaskWebhookPayload(BaseModel):
 
 
 async def _process_ocr_webhook(payload: TaskWebhookPayload) -> None:
-    from apps.ai.clients import OCRClient
-    from apps.bots import handlers, models
+    from apps.bots import handlers
+    from utils.clients import OCRClient
 
     logging.info(
         "OCR webhook received for task %s status=%s", payload.uid, payload.task_status
@@ -42,6 +42,7 @@ async def _process_ocr_webhook(payload: TaskWebhookPayload) -> None:
     response_message_id = meta.get("message_id")
     bot_name = meta.get("bot_name")
     content_type = meta.get("content_type", "document")
+    user_id = meta.get("user_id")
 
     if not (chat_id and bot_name):
         logging.error("OCR webhook missing chat_id/bot_name in meta_data: %s", meta)
@@ -53,17 +54,6 @@ async def _process_ocr_webhook(payload: TaskWebhookPayload) -> None:
         logging.exception("Failed to fetch OCR result for task %s", payload.uid)
         return
 
-    # Persist result as a Message so content_id callbacks work
-    msg = models.Message(
-        user_id=meta.get("user_id", "unknown"),
-        content=result,
-        content_type=content_type,
-        source_chat_id=str(chat_id),
-        meta_data=meta,
-    )
-    await msg.save()
-    content_id = str(msg.uid)
-
     bot = handlers.get_bot(bot_name)
     from apps.bots.services import send_md_result
 
@@ -72,8 +62,8 @@ async def _process_ocr_webhook(payload: TaskWebhookPayload) -> None:
         chat_id=chat_id,
         response_message_id=response_message_id,
         result=result,
-        content_id=content_id,
         content_type=content_type,
+        user_id=user_id,
     )
 
 
@@ -91,8 +81,8 @@ async def ocr_webhook(
 
 
 async def _process_transcribe_webhook(payload: TaskWebhookPayload) -> None:
-    from apps.ai.clients import TranscribeClient
-    from apps.bots import handlers, models
+    from apps.bots import handlers
+    from utils.clients import TranscribeClient
 
     logging.info(
         "Transcribe webhook received for task %s status=%s",
@@ -111,6 +101,7 @@ async def _process_transcribe_webhook(payload: TaskWebhookPayload) -> None:
     response_message_id = meta.get("message_id")
     bot_name = meta.get("bot_name")
     content_type = meta.get("content_type", "voice")
+    user_id = meta.get("user_id")
 
     if not (chat_id and bot_name):
         logging.error("Transcribe webhook missing chat_id/bot_name: %s", meta)
@@ -122,17 +113,6 @@ async def _process_transcribe_webhook(payload: TaskWebhookPayload) -> None:
         logging.exception("Failed to fetch transcribe result for task %s", payload.uid)
         return
 
-    # Persist result
-    msg = models.Message(
-        user_id=meta.get("user_id", "unknown"),
-        content=result,
-        content_type=content_type,
-        source_chat_id=str(chat_id),
-        meta_data=meta,
-    )
-    await msg.save()
-    content_id = str(msg.uid)
-
     bot = handlers.get_bot(bot_name)
     from apps.bots.services import send_md_result
 
@@ -141,8 +121,8 @@ async def _process_transcribe_webhook(payload: TaskWebhookPayload) -> None:
         chat_id=chat_id,
         response_message_id=response_message_id,
         result=result,
-        content_id=content_id,
         content_type=content_type,
+        user_id=user_id,
     )
 
 

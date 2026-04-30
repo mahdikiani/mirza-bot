@@ -75,26 +75,27 @@ def products_keyboard(
 
 
 def md_result_keyboard(
-    content_id: str,
     content_type: str,
     media_url: str | None = None,
 ) -> InlineKeyboardMarkup:
-    """Inline keyboard shown below every MD result (OCR / transcribe / video)."""
+    """Inline keyboard shown below every MD result (OCR / transcribe / video).
+
+    Content is read directly from the message text when a button is pressed —
+    no content_id or DB lookup needed.
+    """
     markup = InlineKeyboardMarkup(row_width=2)
     markup.add(
         InlineKeyboardButton(
-            "خلاصه کن", callback_data=f"action:summarize:{content_id}"
+            "خلاصه کن", callback_data="action:summarize"
         ),
         InlineKeyboardButton(
-            "ساختاردهی", callback_data=f"action:structure:{content_id}"
+            "ساختاردهی", callback_data="action:structure"
         ),
     )
     markup.add(
-        InlineKeyboardButton("ترجمه", callback_data=f"action:translate:{content_id}"),
-        InlineKeyboardButton("چت", callback_data=f"action:chat:{content_id}"),
+        InlineKeyboardButton("ترجمه", callback_data="action:translate"),
+        InlineKeyboardButton("چت", callback_data="action:chat"),
     )
-    # Viewer button: for large results uploaded to media, use the media URL;
-    # for voice/video always show viewer link
     if media_url:
         viewer_url = f"{Settings.viewer_base_url}?url={media_url}"
         markup.add(
@@ -104,7 +105,7 @@ def md_result_keyboard(
         markup.add(
             InlineKeyboardButton(
                 "مشاهده آنلاین",
-                url=f"{Settings.viewer_base_url}/{content_id}",
+                url=f"{Settings.viewer_base_url}?type={content_type}",
             ),
         )
     return markup

@@ -302,7 +302,6 @@ async def send_md_result(
     chat_id: int | str,
     response_message_id: int,
     result: str,
-    content_id: str,
     content_type: str,
     user_id: str | None = None,
 ) -> None:
@@ -313,9 +312,7 @@ async def send_md_result(
     )
 
     if len(result) <= threshold:
-        keyboard = keyboards.md_result_keyboard(
-            content_id, content_type, media_url=None
-        )
+        keyboard = keyboards.md_result_keyboard(content_type, media_url=None)
         await bot.edit_message_text(
             text=result[:4096],
             chat_id=chat_id,
@@ -328,16 +325,14 @@ async def send_md_result(
             remaining = remaining[4096:]
     else:
         md_bytes = result.encode("utf-8")
-        file_name = f"result_{content_id[:8]}.md"
+        file_name = f"result_{user_id or 'unknown'[:8]}.md"
         try:
             media_url = await _upload_file(md_bytes, file_name)
         except Exception:
             logging.exception("Failed to upload MD result to media service")
             media_url = None
 
-        keyboard = keyboards.md_result_keyboard(
-            content_id, content_type, media_url=media_url
-        )
+        keyboard = keyboards.md_result_keyboard(content_type, media_url=media_url)
         await bot.edit_message_text(
             text="نتیجه آماده شد. برای مشاهده کامل روی دکمه زیر کلیک کنید:",
             chat_id=chat_id,
@@ -351,25 +346,52 @@ async def send_md_result(
 # ---------------------------------------------------------------------------
 
 
-async def handle_content_action(
-    action: str,
-    content_id: str,
+async def _extract_content_from_message(
     message: schemas.MessageOwned,
     bot: base_bot.BaseBot,
 ) -> str | None:
-    import uuid
+    """Extract text content from a message — handles both text and .md file attachments.
 
+    Priority:
+    1. If message has a document (e.g. a .md file we sent), download and return it.
+    2. Otherwise return message.text or message.caption.
+    """
+    doc = getattr(message, "document", None)
+    if doc:
+        file_name: str = doc.file_name or ""
+        # Only download text-like files — skip images, audio, video, pdf
+        ext = file_name.rsplit(".", 1)[-1].lower() if "." in file_name else ""
+        skip_exts = {
+            "pdf", "jpg", "jpeg", "png", "gif", "webp",
+            "mp3", "ogg", "mp4", "mov", "avi", "mkv", "webm",
+        }
+        if ext not in skip_exts:
+            try:
+                file_info = await bot.get_file(doc.file_id)
+                raw = await bot.download_file(file_info.file_path)
+                return raw.decode("utf-8", errors="replace")
+            except Exception:
+                logging.exception("Failed to download document %s", file_name)
+
+    return message.text or message.caption or None
+
+
+async def handle_content_action(
+    action: str,
+    message: schemas.MessageOwned,
+    bot: base_bot.BaseBot,
+) -> str | None:
+    """Execute a content action (summarize/structure/translate/chat).
+
+    Content is read directly from the Telegram message — either from
+    message.text or by downloading the attached .md document.
+    No DB lookup needed.
+    """
     user_id = str(message.user.uid) if message.user else None
 
-    try:
-        uid = uuid.UUID(content_id)
-        saved_msg: models.Message = await models.Message.get_item(
-            uid=uid, user_id=user_id
-        )
-        content = saved_msg.content
-    except Exception:
-        logging.exception("Content not found: %s", content_id)
-        return "محتوا یافت نشد."
+    content = await _extract_content_from_message(message, bot)
+    if not content:
+        return "محتوایی برای پردازش یافت نشد."
 
     language = "fa"
     if message.profile and message.profile.profile_data:
