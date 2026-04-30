@@ -139,7 +139,11 @@ class AIChatClient:
 
 
 class PrompticClient:
-    """Execute named prompt templates via services/promptic."""
+    """Execute named prompt templates via services/promptic.
+
+    Uses POST /prompts/{prompt_name}/invocations?blocking=true
+    and returns the result string from InvocationSchema.
+    """
 
     @staticmethod
     async def execute(
@@ -147,19 +151,21 @@ class PrompticClient:
         variables: dict[str, Any],
         user_id: str | None = None,
     ) -> str:
-        payload: dict[str, Any] = {"template": template, "variables": variables}
+        """Run a prompt template synchronously and return the result text."""
+        meta: dict[str, Any] = {}
         if user_id:
-            payload["user_id"] = user_id
-        async with service_client(Settings.promptic_base_url) as c:
-            resp = await c.post("/execute", json=payload)
-            resp.raise_for_status()
-            return resp.json().get("result", "")
+            meta["user_id"] = user_id
 
-    @staticmethod
-    async def render(template: str, variables: dict[str, Any]) -> str:
+        payload: dict[str, Any] = {"input_vars": variables}
+        if meta:
+            payload["meta_data"] = meta
+
         async with service_client(Settings.promptic_base_url) as c:
             resp = await c.post(
-                "/render", json={"template": template, "variables": variables}
+                f"/prompts/{template}/invocations",
+                params={"blocking": "true"},
+                json=payload,
             )
             resp.raise_for_status()
-            return resp.json().get("result", "")
+            data = resp.json()
+            return data.get("result") or ""
