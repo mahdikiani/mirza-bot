@@ -11,7 +11,7 @@ from unittest.mock import AsyncMock, MagicMock, patch
 import httpx
 import pytest
 
-from apps.ai.clients import MediaClient
+from utils.clients import MediaClient
 
 
 def _mock_response(
@@ -51,7 +51,7 @@ async def test_upload_url_from_patch_resp() -> None:
     )
     mock_client = _make_mock_httpx_client(upload_resp, patch_resp)
 
-    with patch("apps.ai.clients.httpx.AsyncClient", return_value=mock_client):
+    with patch("utils.clients.media.httpx.AsyncClient", return_value=mock_client):
         result = await MediaClient.upload(b"file-content", "test.pdf")
 
     assert result == "https://media.example.com/final-url"
@@ -61,7 +61,9 @@ async def test_upload_url_from_patch_resp() -> None:
 async def test_upload_fallback_to_upload_resp_url(
     caplog: pytest.LogCaptureFixture,
 ) -> None:
-    """Req 16.2: Falls back to upload_resp URL when patch_resp has no url, with warning."""
+    """
+    Req 16.2: Falls back to upload_resp URL when patch_resp has no url, with warning.
+    """
     upload_resp = _mock_response(
         json_data={"uid": "file-456", "url": "https://media.example.com/upload-url"},
     )
@@ -69,7 +71,7 @@ async def test_upload_fallback_to_upload_resp_url(
     mock_client = _make_mock_httpx_client(upload_resp, patch_resp)
 
     with (
-        patch("apps.ai.clients.httpx.AsyncClient", return_value=mock_client),
+        patch("utils.clients.media.httpx.AsyncClient", return_value=mock_client),
         caplog.at_level(logging.WARNING),
     ):
         result = await MediaClient.upload(b"file-content", "test.pdf")
@@ -85,6 +87,8 @@ async def test_upload_raises_value_error_when_no_url() -> None:
     patch_resp = _mock_response(json_data={})  # no "url"
     mock_client = _make_mock_httpx_client(upload_resp, patch_resp)
 
-    with patch("apps.ai.clients.httpx.AsyncClient", return_value=mock_client):
-        with pytest.raises(ValueError, match="no URL returned for file"):
-            await MediaClient.upload(b"file-content", "missing.pdf")
+    with (
+        patch("utils.clients.media.httpx.AsyncClient", return_value=mock_client),
+        pytest.raises(ValueError, match="no URL returned for file"),
+    ):
+        await MediaClient.upload(b"file-content", "missing.pdf")

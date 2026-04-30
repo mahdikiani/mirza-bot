@@ -103,7 +103,8 @@ async def _fetch_twitter(tweet_id: str) -> str:
     )
     text = tweet.get("full_text") or tweet.get("text") or ""
     user = tweet.get("user_id_str", "")
-    return f"[توییت — {tweet_id}]\n\n{text}\n\nکاربر: {user}"
+    label = f"[توییت - {tweet_id}]"
+    return f"{label}\n\n{text}\n\nکاربر: {user}"  # noqa:RUF001
 
 
 # ---------------------------------------------------------------------------
@@ -132,7 +133,8 @@ async def _fetch_instagram(shortcode: str) -> str:
     caption_edges = item.get("edge_media_to_caption", {}).get("edges") or []
     caption = caption_edges[0]["node"]["text"] if caption_edges else ""
     owner = item.get("owner", {}).get("username", "")
-    return f"[اینستاگرام — {shortcode}]\n\n{caption}\n\nاکانت: @{owner}"
+    label = f"[اینستاگرام - {shortcode}]"
+    return f"{label}\n\n{caption}\n\nاکانت: @{owner}"  # noqa:RUF001
 
 
 # ---------------------------------------------------------------------------

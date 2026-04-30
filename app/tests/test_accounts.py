@@ -81,9 +81,11 @@ async def test_get_user_profile_http_error_propagates() -> None:
     mock_resp = _mock_response(status_code=403)
     mock_client = _make_mock_client(mock_resp)
 
-    with patch("apps.accounts.handlers.get_usso_client", return_value=mock_client):
-        with pytest.raises(httpx.HTTPStatusError):
-            await get_user_profile("bad-user-id")
+    with (
+        patch("apps.accounts.handlers.get_usso_client", return_value=mock_client),
+        pytest.raises(httpx.HTTPStatusError),
+    ):
+        await get_user_profile("bad-user-id")
 
 
 @pytest.mark.asyncio
@@ -92,6 +94,8 @@ async def test_get_user_profile_server_error_propagates() -> None:
     mock_resp = _mock_response(status_code=500)
     mock_client = _make_mock_client(mock_resp)
 
-    with patch("apps.accounts.handlers.get_usso_client", return_value=mock_client):
-        with pytest.raises(httpx.HTTPStatusError):
-            await get_user_profile("server-error-user")
+    with (
+        patch("apps.accounts.handlers.get_usso_client", return_value=mock_client),
+        pytest.raises(httpx.HTTPStatusError),
+    ):
+        await get_user_profile("server-error-user")

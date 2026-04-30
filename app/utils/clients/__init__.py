@@ -1,8 +1,6 @@
-"""Backward-compatibility shim.
+"""Internal service clients — re-exported for convenience.
 
-All clients have been moved to ``utils/clients/``.
-Import from there directly:
-
+Usage:
     from utils.clients import AIChatClient, MediaClient, ShopClient, ...
 """
 

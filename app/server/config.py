@@ -47,6 +47,10 @@ class Settings(config.Settings):
     # Viewer base URL for long MD results
     viewer_base_url: str = os.getenv("VIEWER_BASE_URL", "https://view.uln.me")
 
+    # Shop and SaaS service URLs
+    shop_base_url: str = os.getenv("SHOP_BASE_URL", "https://shop.uln.me/api/shop/v1")
+    saas_base_url: str = os.getenv("SAAS_BASE_URL", "https://saas.uln.me/api/saas/v1")
+
     # External API keys for URL content fetching
     rapidapi_key: str | None = os.getenv("RAPIDAPI_KEY")
     youtube_transcript_api_key: str | None = os.getenv("YOUTUBE_TRANSCRIPT_API_KEY")

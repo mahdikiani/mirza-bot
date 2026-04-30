@@ -44,7 +44,7 @@ def _api_error(description: str) -> ApiTelegramException:
 
 @pytest.mark.asyncio
 async def test_send_message_empty_text_returns_none() -> None:
-    """Empty string → split_text returns [] → send_message returns None without error."""
+    """Empty string: split_text returns [] so send_message returns None."""
     bot = _make_bot()
     with patch("apps.bots.base_bot.split_text", return_value=[]):
         result = await bot.send_message(123, "")
@@ -77,7 +77,7 @@ async def test_send_message_multiple_chunks_returns_last() -> None:
     bot = _make_bot()
     msg1, msg2 = MagicMock(), MagicMock()
 
-    async def fake_super_send(
+    async def fake_super_send(  # noqa: RUF029
         chat_id: object, text: object, *args: object, **kwargs: object
     ) -> MagicMock:
         return msg1 if text == "chunk1" else msg2
@@ -100,7 +100,7 @@ async def test_send_message_message_too_long_logs_warning() -> None:
     bot = _make_bot()
     err = _api_error("MESSAGE_TOO_LONG")
 
-    async def fake_super_send(*args: object, **kwargs: object) -> None:
+    async def fake_super_send(*args: object, **kwargs: object) -> None:  # noqa: RUF029
         raise err
 
     with (

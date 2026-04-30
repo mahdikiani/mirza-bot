@@ -69,7 +69,7 @@ class BotHandler(metaclass=singleton.Singleton):
     async def _start_full_polling(self) -> None:
         from apps.bots.poller import start_full_polling_mode
 
-        await start_full_polling_mode(Settings.polling_interval_seconds)
+        start_full_polling_mode(Settings.polling_interval_seconds)
 
     async def _start_bale_fallback_poller(self) -> None:
         from apps.bots.poller import start_polling_worker
@@ -80,7 +80,7 @@ class BotHandler(metaclass=singleton.Singleton):
         )
         if has_bale:
             logging.info("Starting Bale fallback polling worker (60s interval)...")
-            await start_polling_worker()
+            start_polling_worker()
 
     async def setup_webhook(self, bot: base_bot.BaseBot) -> None:
         from apps.bots import routes

@@ -2,15 +2,15 @@
 
 import logging
 
-from apps.ai.clients import (
+from apps.bots import base_bot, keyboards, models, schemas
+from server.config import Settings
+from utils.clients import (
     AIChatClient,
     MediaClient,
     OCRClient,
     PrompticClient,
     TranscribeClient,
 )
-from apps.bots import base_bot, keyboards, models, schemas
-from server.config import Settings
 
 # ---------------------------------------------------------------------------
 # Session management
@@ -91,7 +91,7 @@ async def _extract_text_attachment(
     message: schemas.MessageOwned,
     bot: base_bot.BaseBot,
 ) -> str | None:
-    """If the message has a text-like document (md/txt/etc.), download and return its content."""
+    """Download and return content of text-like documents (md/txt/etc.)."""
     doc = getattr(message, "document", None)
     if not doc:
         return None
@@ -99,7 +99,7 @@ async def _extract_text_attachment(
     file_name: str = doc.file_name or ""
     ext = file_name.rsplit(".", 1)[-1].lower() if "." in file_name else ""
 
-    TEXT_EXTENSIONS = {
+    text_extensions = {
         "md",
         "txt",
         "csv",
@@ -111,7 +111,7 @@ async def _extract_text_attachment(
         "htm",
         "rst",
     }
-    SKIP_EXTENSIONS = {
+    skip_extensions = {
         "pdf",
         "jpg",
         "jpeg",
@@ -127,9 +127,9 @@ async def _extract_text_attachment(
         "webm",
     }
 
-    if ext in SKIP_EXTENSIONS:
+    if ext in skip_extensions:
         return None
-    if ext not in TEXT_EXTENSIONS and ext:
+    if ext not in text_extensions and ext:
         return None
 
     try:

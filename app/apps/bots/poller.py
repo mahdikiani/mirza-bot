@@ -82,7 +82,7 @@ async def _bale_fallback_loop() -> None:
                 logging.exception("Bale fallback poller: error for %s", bot_cls)
 
 
-async def start_polling_worker() -> asyncio.Task:
+def start_polling_worker() -> asyncio.Task:
     """Start the Bale fallback poller as a background task."""
     return asyncio.create_task(_bale_fallback_loop(), name="bale-fallback-poller")
 
@@ -105,6 +105,6 @@ async def _full_polling_loop(interval: float) -> None:
         await asyncio.sleep(interval)
 
 
-async def start_full_polling_mode(interval: float = 2.0) -> asyncio.Task:
+def start_full_polling_mode(interval: float = 2.0) -> asyncio.Task:
     """Start full polling mode as a background task (replaces webhooks)."""
     return asyncio.create_task(_full_polling_loop(interval), name="full-poller")
