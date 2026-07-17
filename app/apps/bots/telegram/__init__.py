@@ -1,0 +1,1 @@
+"""Telegram Telethon transport adapter."""

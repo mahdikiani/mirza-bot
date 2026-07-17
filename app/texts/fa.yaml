@@ -1,0 +1,127 @@
+buttons:
+  new_chat: "مکالمه جدید"
+  my_chats: "مکالمه‌های من"
+  upload_file: "ارسال فایل"
+  my_account: "حساب من"
+  buy_credits: "خرید اعتبار"
+  help: "راهنما"
+  balance: "موجودی"
+  translate: "ترجمه"
+  summarize: "خلاصه کن"
+  format_notes: "تبدیل به جزوه"
+  ask_question: "پرسیدن سوال"
+  view_online: "مشاهده آنلاین"
+  pay: "پرداخت"
+  previous: "⬅️ قبلی"
+  next: "بعدی ➡️"
+  answer: "پاسخ دادن"
+  go_to_bot: "رفتن به بات"
+  reopen: "باز کردن"
+  archive: "بایگانی"
+  delete: "حذف"
+  share_contact: "ارسال شماره تماس"
+  settings: "⚙️ تنظیمات"
+  change_model: "تغییر مدل"
+  back: "🔙 برگشت"
+
+messages:
+  start: |
+    سلام. متن، فایل، ویس، ویدیو، تصویر، PDF، لینک یوتیوب یا لینک گوگل‌درایو بفرست.
+
+    من می‌توانم چت کنم، فایل‌ها را بخوانم، صدا را به متن تبدیل کنم و خروجی را خلاصه، ترجمه یا مرتب کنم.
+  start_contact: |
+    سلام، خوش آمدی.
+
+    برای شروع لطفا شماره تماس خودت را با دکمه زیر ارسال کن.
+  help: |
+    راهنما:
+
+    • متن بفرستید: چت با هوش مصنوعی
+    • ویس/صدا/ویدیو بفرستید: تبدیل به متن
+    • عکس/PDF بفرستید: استخراج متن
+    • لینک بفرستید: خواندن و خلاصه‌سازی
+    • در گروه‌ها روی پیام ریپلای کنید و بات را صدا بزنید
+
+    دکمه‌های زیر نتایج برای ترجمه، خلاصه، جزوه‌سازی و سوال پرسیدن هستند.
+  thinking: "در حال فکر کردن..."
+  processing: "در حال پردازش..."
+  reading_link: "در حال خواندن لینک..."
+  link_ready: "محتوای {label} دریافت شد. در حال آماده‌سازی پاسخ..."
+  no_user: "کاربر شناسایی نشد."
+  new_chat_started: "مکالمه جدید آغاز شد."
+  unknown_command: "دستور شناخته نشد."
+  no_content: "محتوایی برای پردازش یافت نشد."
+  content_added_to_chat: "محتوا به مکالمه اضافه شد. اکنون سوال خود را بپرسید."
+  ai_error: "خطایی در ارتباط با سرویس هوش مصنوعی رخ داد. لطفا دوباره تلاش کنید."
+  file_processing_error: "خطایی در پردازش فایل رخ داد."
+  link_import_error: "نتوانستم این لینک را بخوانم. لطفا مطمئن شوید عمومی و قابل دسترسی است."
+  result_ready_full: "نتیجه آماده شد. برای مشاهده کامل روی دکمه زیر کلیک کنید:"
+  result_document_caption: "📄 فایل نتیجه"
+  result_sent_as_file: "✅ نتیجه به صورت فایل ارسال شد"
+  account_error: "خطا در دریافت اطلاعات حساب. لطفا دوباره تلاش کنید."
+  balance: "موجودی شما: *{quota}* {unit}"
+  products_error: "خطا در دریافت لیست محصولات."
+  no_products: "محصولی برای نمایش وجود ندارد."
+  products_page: "بسته‌های موجود (صفحه {page}):"
+  purchase_error: "خطا در ایجاد سفارش. لطفا دوباره تلاش کنید."
+  purchase_prompt: "برای تکمیل خرید روی دکمه زیر کلیک کنید:"
+  inline_empty: "لطفا متن سوال خود را تایپ کنید."
+  inline_title: "پاسخ هوش مصنوعی"
+  profile: |
+    username: `{username}`
+    id: `{id}`
+    first name: {first}
+    last name: {last}
+    language: {language}
+  inline_placeholder: "متن خود را تایپ کنید"
+  bot_started: "شروع شد"
+  startup_admin: "{bot_name} بالا آمد. نسخه: {version}. runtime: {runtime}."
+  onboarding_success: "همه چیز آماده است! متن، فایل، ویس، ویدیو یا لینک بفرستید."
+  onboarding_error: "مشکلی در تایید شماره تماس رخ داد. لطفاً چند لحظه دیگر دوباره تلاش کنید."
+  contact_mismatch: "لطفاً شماره تماس خودتان را با دکمه ارسال کنید."
+  typed_phone_rejected: "لطفاً شماره تماس را فقط با دکمه «ارسال شماره تماس» بفرستید."
+  task_error: "پردازش با خطا مواجه شد. لطفاً دوباره تلاش کنید."
+  task_timeout: "پردازش بیش از حد طول کشید. لطفاً دوباره تلاش کنید."
+  settings_prompt: "تنظیمات:"
+  language_changed: "زبان شما با موفقیت تغییر یافت."
+  model_prompt: "مدل مورد نظر را انتخاب کنید:"
+  model_changed: "مدل به {model} تغییر یافت."
+  insufficient_credits: "موجودی اعتبار شما کافی نیست. لطفاً حساب خود را شارژ کنید."
+  link_summarize_prompt: |
+    [{label}]:
+    {content}
+
+    خلاصه‌ای از این محتوا بده.
+  link_question_prompt: |
+    سوال کاربر: {question}
+
+    ارجاع لینک واردشده: {ref}
+
+    خلاصه موجود از import:
+    {summary}
+
+    با استفاده از محتوای import شده لینک به کاربر پاسخ بده.
+  no_sessions: "مکالمه‌ای یافت نشد."
+  session_list: "مکالمه‌های شما (صفحه {page}):"
+  session_reopened: "مکالمه '{title}' باز شد."
+  session_archived: "مکالمه '{title}' بایگانی شد."
+  select_session: "روی یک مکالمه کلیک کنید:"
+
+labels:
+  youtube: "یوتیوب"
+  twitter: "توییتر/X"
+  instagram: "اینستاگرام"
+  webpage: "صفحه وب"
+  link: "لینک"
+  token_unit: "توکن"
+  coin_unit: "سکه"
+  link_content: "محتوای لینک"
+  attachment: "پیوست"
+  sender_user: "کاربر"
+  sender_assistant: "دستیار"
+  youtube_transcript: "ترنسکریپت یوتیوب — {id}"
+  tweet_label: "توییت — {id}"
+  user_label: "کاربر"
+  instagram_label: "اینستاگرام — {shortcode}"
+  account_label: "اکانت"
+  product_default: "محصول"

@@ -1,0 +1,42 @@
+services:
+  app:
+    build: app
+    restart: unless-stopped
+    hostname: ${PROJECT_NAME}
+    env_file:
+      - .env
+    environment:
+      PORT: ${PORT:-8000}
+      POLLING_INTERVAL_SECONDS: ${POLLING_INTERVAL_SECONDS:-2}
+    volumes:
+      - ./app/sessions:/app/sessions:rw
+      - ./app/logs:/app/logs:rw
+    networks:
+      - traefik-net
+      - mongo-net
+    healthcheck:
+      test:
+        [
+          "CMD-SHELL",
+          "python - <<'PY'\nimport urllib.request\nurllib.request.urlopen('http://127.0.0.1:${PORT:-8000}/api/bot/v1/health', timeout=5)\nPY",
+        ]
+      interval: 5m
+      timeout: 10s
+      retries: 3
+      start_period: 20s
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.${PROJECT_NAME}.entrypoints=web"
+      - "traefik.http.routers.${PROJECT_NAME}.rule=Host(`${DOMAIN}`)"
+      - "traefik.http.routers.${PROJECT_NAME}-secure.entrypoints=websecure"
+      - "traefik.http.routers.${PROJECT_NAME}-secure.rule=Host(`${DOMAIN}`)"
+      - "traefik.http.routers.${PROJECT_NAME}-secure.tls=true"
+      - "traefik.http.routers.${PROJECT_NAME}-secure.tls.certresolver=letsencrypt"
+      - "traefik.http.services.${PROJECT_NAME}.loadbalancer.server.port=${PORT:-8000}"
+      - "traefik.docker.network=traefik-net"
+
+networks:
+  traefik-net:
+    external: true
+  mongo-net:
+    external: true
