@@ -11,6 +11,7 @@ class BotUser(UserOwnedEntity):
     """Local bot user profile linked to USSO."""
 
     telegram_user_id: str = ""
+    platform_user_id: str = ""
     usso_user_id: str = ""
     usso_synced: bool = True
     preferred_language: str = "fa"

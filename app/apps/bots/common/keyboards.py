@@ -106,7 +106,11 @@ def md_result_keyboard(
         ],
         [
             InlineButton(button("translate"), callback_data="action:translate"),
-            InlineButton(button("ask_question"), callback_data="action:chat"),
+            InlineButton(button("cleanup"), callback_data="action:cleanup"),
+        ],
+        [
+            InlineButton(button("minutes"), callback_data="action:minutes"),
+            InlineButton(button("quiz"), callback_data="action:quiz"),
         ],
     ]
     if Settings.viewer_base_url:
@@ -131,8 +135,13 @@ def products_keyboard(
     for product in products:
         uid = product.get("uid", "")
         name = product.get("name") or text("labels.product_default")
-        price = product.get("unit_price", "?")
-        rows.append([InlineButton(f"{name} — {price}", callback_data=f"buy:{uid}")])
+        raw = product.get("unit_price", 0)
+        try:
+            toman = int(raw) // 10
+            price = f"{toman:,}"
+        except (ValueError, TypeError):
+            price = str(raw)
+        rows.append([InlineButton(f"{name} — {price} تومان", callback_data=f"buy:{uid}")])
 
     nav: list[InlineButton] = []
     if page > 0:

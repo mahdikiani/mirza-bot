@@ -21,6 +21,8 @@ MENU_ACTIONS: dict[str, str] = {
     "/purchase": "purchase",
     "/menu": "menu",
     "/settings": "settings",
+    "/info": "info",
+    "/models": "models",
 }
 
 

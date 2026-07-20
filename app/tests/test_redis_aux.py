@@ -17,7 +17,6 @@ from utils.clients._base import (
     generate_trace_id,
     service_client,
 )
-from utils.media import get_media_client, upload_file
 
 # ---------------------------------------------------------------------------
 # server.redis
@@ -193,43 +192,3 @@ class TestAIClientsAdditional:
             result = await TranscribeClient.get_result("task-tr-1")
 
         assert result == "Transcription text"
-
-
-# ---------------------------------------------------------------------------
-# utils.media (legacy module)
-# ---------------------------------------------------------------------------
-
-
-class TestLegacyMedia:
-    @pytest.mark.asyncio
-    async def test_get_media_client_yields_client(self) -> None:
-        with patch("utils.media.Settings") as mock_settings:
-            mock_settings.media_api_key = "media-key"
-
-            async with get_media_client() as client:
-                assert client is not None
-
-    @pytest.mark.asyncio
-    async def test_upload_file_returns_url(self) -> None:
-        mock_client = AsyncMock()
-        mock_client.post = AsyncMock(
-            return_value=MagicMock(
-                json=lambda: {"uid": "file-1", "url": "https://media.test/file-1"},
-                raise_for_status=lambda: None,
-            )
-        )
-        mock_client.patch = AsyncMock(
-            return_value=MagicMock(
-                json=lambda: {"url": "https://media.test/file-1"},
-                raise_for_status=lambda: None,
-            )
-        )
-        mock_client.__aenter__ = AsyncMock(return_value=mock_client)
-        mock_client.__aexit__ = AsyncMock(return_value=False)
-
-        from io import BytesIO
-
-        with patch("utils.media.get_media_client", return_value=mock_client):
-            url = await upload_file(BytesIO(b"test content"), "test.txt")
-
-        assert url == "https://media.test/file-1"

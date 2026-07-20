@@ -7,7 +7,10 @@ from pathlib import Path
 import dotenv
 from fastapi_mongo_base.core import config
 
-dotenv.load_dotenv()
+# Always load from repo-root .env (parent of app/), not whatever cwd happens to be.
+_ENV_FILE = Path(__file__).resolve().parents[2] / ".env"
+dotenv.load_dotenv(_ENV_FILE)
+dotenv.load_dotenv()  # also allow cwd overrides for local/dev
 
 
 @dataclasses.dataclass
@@ -41,6 +44,16 @@ class Settings(config.Settings):
     )
     ai_api_key: str | None = os.getenv("AI_API_KEY")
     media_api_key: str | None = os.getenv("MEDIA_API_KEY")
+    shop_api_key: str | None = os.getenv("SHOP_API_KEY") or os.getenv("AI_API_KEY")
+    saas_api_key: str | None = os.getenv("SAAS_API_KEY") or os.getenv("AI_API_KEY")
+    webhook_api_key: str | None = (
+        os.environ["WEBHOOK_API_KEY"]
+        if "WEBHOOK_API_KEY" in os.environ
+        else os.getenv("AI_API_KEY")
+    )
+    usso_user_cache_ttl_seconds: int = int(
+        os.getenv("USSO_USER_CACHE_TTL_SECONDS", "600")
+    )
 
     # Viewer base URL for long MD results
     viewer_base_url: str = os.getenv("VIEWER_BASE_URL", "https://view.uln.me")

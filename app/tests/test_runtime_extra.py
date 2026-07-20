@@ -69,7 +69,6 @@ async def test_setup_bale_bot_registers_renderer() -> None:
 
     with (
         patch("apps.bots.bale.bot.BaleBot.is_configured", return_value=True),
-        patch.object(handler, "_clear_webhook", AsyncMock()) as clear_wh,
         patch.object(handler, "_notify_admin_started", AsyncMock()),
         patch(
             "apps.bots.common.renderer_registry.register_renderer"
@@ -77,19 +76,17 @@ async def test_setup_bale_bot_registers_renderer() -> None:
     ):
         await handler._setup_bale_bot(bot)
 
-    clear_wh.assert_awaited_once()
     register_renderer.assert_called_once()
 
 
-@pytest.mark.asyncio
-async def test_poller_bale_bots_from_registry() -> None:
+def test_poller_bale_bots_from_registry() -> None:
     bot = MagicMock()
     bot.bot_type = "bale"
     bot.me = "b1"
     registry.register(bot)
 
     with patch("apps.bots.bale.bot.BaleBot.is_configured", return_value=True):
-        bots = await poller._bale_bots()
+        bots = poller._bale_bots()
     assert bot in bots
 
 
@@ -111,7 +108,7 @@ async def test_poller_full_loop_one_iteration() -> None:
             raise asyncio.CancelledError
 
     with (
-        patch("apps.bots.runtime.poller._bale_bots", AsyncMock(return_value=[bot])),
+        patch("apps.bots.runtime.poller._bale_bots", return_value=[bot]),
         patch("apps.bots.runtime.poller.asyncio.sleep", fake_sleep),
         pytest.raises(asyncio.CancelledError),
     ):
@@ -165,16 +162,6 @@ async def test_bale_renderer_download_file() -> None:
     )
     result = await renderer.download_attached_file(event)
     assert result == (b"data", "a.bin")
-
-
-@pytest.mark.asyncio
-async def test_clear_webhook() -> None:
-    handler = BotHandler()
-    bot = AsyncMock()
-    bot.me = "b"
-    bot.delete_webhook = AsyncMock()
-    await handler._clear_webhook(bot)
-    bot.delete_webhook.assert_awaited_once()
 
 
 @pytest.mark.asyncio

@@ -105,30 +105,40 @@ def test_normalize_bale_callback() -> None:
 
 @pytest.mark.asyncio
 async def test_process_bale_poll_updates() -> None:
-    from apps.bots.bale.handler import process_bale_poll_updates
+    from apps.bots.runtime.poller import _process_updates
 
     bot = MagicMock()
     bot.me = "bale_bot"
     update = MagicMock()
-    update.to_dict.return_value = {
-        "message": {
-            "message_id": 1,
-            "text": "hi",
-            "chat": {"id": 2, "type": "private"},
-            "from": {"id": 3},
-        }
-    }
+    update.message = MagicMock(
+        message_id=1,
+        text="hi",
+        chat=MagicMock(id=2, type="private"),
+        from_user=MagicMock(id=3),
+        caption=None,
+        contact=None,
+        voice=None,
+        audio=None,
+        video=None,
+        document=None,
+        sticker=None,
+        animation=None,
+        photo=None,
+        reply_to_message=None,
+        date=0,
+    )
+    update.callback_query = None
     with patch(
         "apps.bots.bale.handler.handle_bale_update",
         AsyncMock(),
     ) as handle_mock:
-        await process_bale_poll_updates(bot, [update])
+        await _process_updates(bot, [update])
     handle_mock.assert_awaited_once()
 
 
 def test_bot_return_url_bale() -> None:
     from apps.bots.common.events import PlatformCapabilities
-    from apps.bots.common.handler import BotRuntimeContext, _bot_return_url
+    from apps.bots.common.handler_context import BotRuntimeContext, bot_return_url
 
     ctx = BotRuntimeContext(
         bot_name="bot",
@@ -137,7 +147,7 @@ def test_bot_return_url_bale() -> None:
         capabilities=PlatformCapabilities(),
         bot_username="mybale",
     )
-    assert _bot_return_url(ctx) == "https://ble.ir/mybale"
+    assert bot_return_url(ctx) == "https://ble.ir/mybale"
 
 
 @pytest.mark.asyncio

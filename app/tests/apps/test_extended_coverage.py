@@ -84,6 +84,9 @@ class FakeRenderer:
             return b"plain text content", "notes.txt"
         return b"%PDF", "doc.pdf"
 
+    async def download_document(self, chat_id, message_id):
+        return b"document body"
+
 
 def _ctx(renderer: FakeRenderer) -> BotRuntimeContext:
     return BotRuntimeContext(
@@ -291,8 +294,8 @@ async def test_handler_txt_file_inline_extraction() -> None:
         file=FileRef(file_id="f1", file_name="notes.txt"),
     )
     with patch(
-        "apps.bots.common.handler.get_bot_user",
-        AsyncMock(return_value=_verified_user()),
+        "apps.bots.common.handler.require_verified_user",
+        AsyncMock(return_value=("usso-1", _verified_user())),
     ):
         await handle_message_event(event, _ctx(renderer))
     assert len(renderer.sent) >= 1
@@ -309,11 +312,11 @@ async def test_handler_url_message_dispatches() -> None:
     )
     with (
         patch(
-            "apps.bots.common.handler.get_bot_user",
-            AsyncMock(return_value=_verified_user()),
+            "apps.bots.common.handler.require_verified_user",
+            AsyncMock(return_value=("usso-1", _verified_user())),
         ),
         patch(
-            "apps.bots.common.handler.media_flow.submit_url",
+            "apps.bots.common.urls.media_flow.submit_url",
             AsyncMock(return_value="yt-1"),
         ) as submit_mock,
     ):
@@ -329,8 +332,8 @@ async def test_handler_balance_command() -> None:
     )
     with (
         patch(
-            "apps.bots.common.handler.get_bot_user",
-            AsyncMock(return_value=_verified_user()),
+            "apps.bots.common.handler.require_verified_user",
+            AsyncMock(return_value=("usso-1", _verified_user())),
         ),
         patch(
             "apps.bots.common.handler.billing.fetch_balance",
@@ -490,7 +493,7 @@ async def test_deliver_md_result_long_text_uploads_file() -> None:
             user_id="u1",
             locale="en",
         )
-    renderer.edit_message.assert_awaited_once()
+    renderer.send_document.assert_awaited_once()
 
 
 def test_is_insufficient_credit_error() -> None:
@@ -537,11 +540,11 @@ async def test_handler_promptic_action_callback() -> None:
     )
     with (
         patch(
-            "apps.bots.common.handler.get_bot_user",
-            AsyncMock(return_value=_verified_user()),
+            "apps.bots.common.callbacks.require_verified_callback",
+            AsyncMock(return_value=("usso-1", _verified_user())),
         ),
         patch(
-            "apps.bots.common.handler.actions.run_promptic_action",
+            "apps.bots.common.callbacks.actions.run_promptic_action",
             AsyncMock(),
         ) as run_action,
     ):
@@ -562,7 +565,7 @@ async def test_handler_settings_callback() -> None:
         sender=Sender(id="tg1"),
     )
     with patch(
-        "apps.bots.common.handler.settings.set_preferred_language",
+        "apps.bots.common.callbacks.settings.set_preferred_language",
         AsyncMock(),
     ):
         await handle_callback_event(event, _ctx(renderer))
@@ -582,7 +585,7 @@ async def test_handler_products_page_callback() -> None:
         sender=Sender(id="tg1"),
     )
     with patch(
-        "apps.bots.common.handler.billing.fetch_products_page",
+        "apps.bots.common.callbacks.billing.fetch_products_page",
         AsyncMock(
             return_value=("page 2", [{"uid": "p1", "name": "Pack", "unit_price": 5}], 6)
         ),
@@ -645,11 +648,11 @@ async def test_handler_buy_product_callback() -> None:
     )
     with (
         patch(
-            "apps.bots.common.handler.get_bot_user",
-            AsyncMock(return_value=_verified_user()),
+            "apps.bots.common.callbacks.require_verified_callback",
+            AsyncMock(return_value=("usso-1", _verified_user())),
         ),
         patch(
-            "apps.bots.common.handler.billing.purchase_product",
+            "apps.bots.common.callbacks.billing.purchase_product",
             AsyncMock(return_value="https://pay.test/1"),
         ),
     ):
@@ -694,11 +697,11 @@ async def test_handler_docx_file_added_to_chat() -> None:
 
     with (
         patch(
-            "apps.bots.common.handler.get_bot_user",
-            AsyncMock(return_value=_verified_user()),
+            "apps.bots.common.handler.require_verified_user",
+            AsyncMock(return_value=("usso-1", _verified_user())),
         ),
         patch(
-            "apps.bots.common.handler.context.store_message",
+            "apps.bots.common.files.context.store_message",
             AsyncMock(),
         ) as store_mock,
     ):
@@ -728,7 +731,7 @@ async def test_deliver_md_result_upload_failure_still_edits() -> None:
             user_id="u1",
             locale="fa",
         )
-    renderer.edit_message.assert_awaited_once()
+    renderer.send_document.assert_awaited_once()
 
 
 @pytest.mark.asyncio
@@ -742,18 +745,17 @@ async def test_handler_multi_link_webpages_only() -> None:
     )
     with (
         patch(
-            "apps.bots.common.handler.get_bot_user",
-            AsyncMock(return_value=_verified_user()),
+            "apps.bots.common.handler.require_verified_user",
+            AsyncMock(return_value=("usso-1", _verified_user())),
         ),
         patch(
-            "apps.bots.common.handler.media_flow.fetch_webpages_parallel",
+            "apps.bots.common.urls.media_flow.fetch_webpages_parallel",
             AsyncMock(return_value=["content a", "content b"]),
         ),
         patch(
-            "apps.bots.common.handler.context.chat_completion",
+            "apps.bots.common.urls.context.chat_completion",
             AsyncMock(return_value="summary"),
         ),
     ):
         await handle_message_event(event, _ctx(renderer))
-    assert renderer.sent[-1][1] == "در حال خواندن لینک..."
-    assert renderer.events == ["edit_message"]
+    assert "edit_message" in renderer.events

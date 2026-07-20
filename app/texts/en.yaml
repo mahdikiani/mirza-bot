@@ -9,6 +9,9 @@ buttons:
   translate: "Translate"
   summarize: "Summarize"
   format_notes: "Format as Notes"
+  cleanup: "Clean Voice"
+  minutes: "Meeting Minutes"
+  quiz: "Quiz"
   ask_question: "Ask Question"
   view_online: "View Online"
   pay: "Pay"
@@ -21,6 +24,8 @@ buttons:
   delete: "Delete"
   share_contact: "Share Contact"
   settings: "⚙️ Settings"
+  models: "🧠 Models"
+  info: "ℹ️ Info"
   change_model: "Change Model"
   back: "🔙 Back"
 
@@ -57,7 +62,7 @@ messages:
   result_document_caption: "📄 Result file"
   result_sent_as_file: "✅ The result has been sent as a file"
   account_error: "Could not fetch account data. Please try again."
-  balance: "Your balance: *{quota}* {unit}"
+  balance: "Your balance: <b>{quota}</b> {unit}"
   products_error: "Could not fetch products."
   no_products: "No products are available."
   products_page: "Available packages (page {page}):"
@@ -66,8 +71,8 @@ messages:
   inline_empty: "Please type your question."
   inline_title: "AI Answer"
   profile: |
-    username: `{username}`
-    id: `{id}`
+    username: <code>{username}</code>
+    id: <code>{id}</code>
     first name: {first}
     last name: {last}
     language: {language}
@@ -93,6 +98,16 @@ messages:
   session_reopened: "Session '{title}' reopened."
   session_archived: "Session '{title}' archived."
   select_session: "Click on a session:"
+  info: |
+    🤖 <b>Mirza Bot</b> — Multi-purpose AI Assistant
+
+    • Chat with AI
+    • Voice/audio transcription
+    • Text extraction from images and PDFs
+    • Link reading and summarization
+    • Translation, summarization, note-taking and...
+
+    Use /help for the full guide.
   settings_prompt: "Settings:"
   language_changed: "Your language was updated."
   model_prompt: "Choose your model:"

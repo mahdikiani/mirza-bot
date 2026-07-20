@@ -1,6 +1,6 @@
 [project]
-name = "mdfier-bot"
-version = "0.1.6"
+name = "mirza-bot"
+version = "0.1.7"
 description = "Mirza Bot — multi-messenger AI bot gateway (Telegram/Bale) with OCR, transcription, chat, webpage extraction, and credit-based billing"
 readme = "README.md"
 requires-python = ">=3.13"
@@ -92,7 +92,6 @@ ignore = ["TRY003", "COM812", "B008", "D202", "D203", "D209", "D212", "D413"]
 "apps/bots/common/renderer_registry.py" = ["D102"]
 "apps/bots/telegram/gateway.py" = ["D102", "C901"]
 "apps/bots/bale/renderer.py" = ["D102"]
-"utils/clients/ai.py" = ["D102"]
 "apps/bots/common/docx.py" = ["S314", "S405"]
 
 [tool.ruff.format]

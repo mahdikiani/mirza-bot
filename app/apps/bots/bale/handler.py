@@ -18,7 +18,6 @@ from apps.bots.common.handler import (
     handle_contact_event,
     handle_message_event,
 )
-from apps.bots.common.renderer_registry import register_renderer
 
 logger = logging.getLogger(__name__)
 
@@ -30,10 +29,12 @@ def _get_bot(bot_name: str) -> object:
 
 
 async def handle_bale_update(payload: dict[str, Any], bot_name: str) -> None:
-    """Dispatch a Bale webhook update through shared orchestration."""
+    """Dispatch a Bale update through shared orchestration."""
     bot = _get_bot(bot_name)
     renderer = BaleEventRenderer(bot)
-    register_renderer(bot_name, renderer)
+
+    bot_user_id = getattr(bot, "bot_user_id", None)
+    bot_username = getattr(bot, "me", bot_name)
 
     ctx = BotRuntimeContext(
         bot_name=bot_name,
@@ -44,7 +45,8 @@ async def handle_bale_update(payload: dict[str, Any], bot_name: str) -> None:
             supports_callback_buttons=True,
             max_text_chars=4096,
         ),
-        bot_username=getattr(bot, "me", bot_name),
+        bot_user_id=bot_user_id,
+        bot_username=bot_username,
     )
 
     if callback := payload.get("callback_query"):

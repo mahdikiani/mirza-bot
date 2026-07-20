@@ -33,7 +33,7 @@ logger = logging.getLogger(__name__)
 def app_version() -> str:
     """Return the current app version from package metadata or pyproject.toml."""
     try:
-        return version("mdfier-bot")
+        return version("mirza-bot")
     except PackageNotFoundError:
         pyproject = Path(__file__).resolve().parents[3] / "pyproject.toml"
         try:
@@ -128,63 +128,38 @@ class BotHandler(metaclass=singleton.Singleton):
             bot_token=token,
         )
 
-        async def on_message(event: MessageEvent, client: object) -> None:
-            telethon_renderer = TelethonEventRenderer(
-                cast(TelethonClient, client), bot_name
-            )
-            context = BotRuntimeContext(
+        def _make_runtime_context(client: object) -> BotRuntimeContext:
+            return BotRuntimeContext(
                 bot_name=bot_name,
                 platform="telegram",
-                renderer=telethon_renderer,
+                renderer=TelethonEventRenderer(cast(TelethonClient, client), bot_name),
                 capabilities=gateway.capabilities,
                 bot_user_id=gateway._bot_user_id,
                 bot_username=gateway._bot_username,
             )
-            await handle_message_event(event, context)
+
+        async def on_message(event: MessageEvent, client: object) -> None:
+            await handle_message_event(event, _make_runtime_context(client))
 
         async def on_callback(event: CallbackEvent, client: object) -> None:
-            telethon_renderer = TelethonEventRenderer(
-                cast(TelethonClient, client), bot_name
-            )
-            context = BotRuntimeContext(
-                bot_name=bot_name,
-                platform="telegram",
-                renderer=telethon_renderer,
-                capabilities=gateway.capabilities,
-                bot_user_id=gateway._bot_user_id,
-                bot_username=gateway._bot_username,
-            )
-            await handle_callback_event(event, context)
+            await handle_callback_event(event, _make_runtime_context(client))
 
         async def on_inline_query(event: object, client: object) -> None:
             from apps.bots.common.events import InlineQueryEvent
 
-            telethon_renderer = TelethonEventRenderer(
-                cast(TelethonClient, client), bot_name
-            )
             if not isinstance(event, InlineQueryEvent):
                 return
-            context = BotRuntimeContext(
-                bot_name=bot_name,
-                platform="telegram",
-                renderer=telethon_renderer,
-                capabilities=gateway.capabilities,
-                bot_user_id=gateway._bot_user_id,
-                bot_username=gateway._bot_username,
-            )
-            await handle_inline_query_event(event, context)
+            await handle_inline_query_event(event, _make_runtime_context(client))
 
         async def on_started(client: object) -> None:
             from apps.bots.common.renderer_registry import register_renderer
 
-            telethon_renderer = TelethonEventRenderer(
-                cast(TelethonClient, client), bot_name
-            )
-            register_renderer(bot_name, telethon_renderer)
+            context = _make_runtime_context(client)
+            register_renderer(bot_name, context.renderer)
             await self._notify_admin_started(
                 bot_name,
                 "telethon",
-                renderer=telethon_renderer,
+                renderer=context.renderer,  # type: ignore[arg-type]
             )
 
         gateway.on_message(on_message)
@@ -222,7 +197,7 @@ class BotHandler(metaclass=singleton.Singleton):
             version=app_version(),
             runtime=runtime,
         )
-        if bot is not None and hasattr(bot, "send_message"):
+        if bot is not None and getattr(bot, "bot_type", None) == "bale":
             chat_id = Settings.bale_admin_chat_id or Settings.admin_chat_id
         else:
             chat_id = Settings.admin_chat_id
@@ -241,14 +216,6 @@ class BotHandler(metaclass=singleton.Singleton):
         except Exception:
             logging.exception("Failed to send startup notification to admin")
 
-    async def _clear_webhook(self, bot: object) -> None:
-        """Remove the existing webhook for the given bot."""
-        try:
-            await bot.delete_webhook(drop_pending_updates=False)
-            logging.info("Cleared webhook for %s", getattr(bot, "me", bot))
-        except Exception:
-            logging.exception("Failed to clear webhook for %s", getattr(bot, "me", bot))
-
     async def _start_bale_polling(self) -> None:
         from apps.bots.runtime.poller import start_bale_polling
 
@@ -256,4 +223,6 @@ class BotHandler(metaclass=singleton.Singleton):
             "Starting Bale polling (interval=%.1fs)",
             Settings.polling_interval_seconds,
         )
-        start_bale_polling(Settings.polling_interval_seconds)
+        task = start_bale_polling(Settings.polling_interval_seconds)
+        task.add_done_callback(self._log_runtime_task_result)
+        self._runtime_tasks.append(task)

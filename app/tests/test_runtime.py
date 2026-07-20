@@ -48,7 +48,7 @@ def test_app_version_falls_back_to_pyproject() -> None:
         "apps.bots.runtime.handlers.version",
         side_effect=PackageNotFoundError,
     ):
-        assert app_version() == "0.1.3"
+        assert app_version() == "0.1.6"
 
 
 def test_get_bot_returns_matching_bot() -> None:
@@ -143,7 +143,7 @@ async def test_startup_notification_sends_version_to_admin() -> None:
         await handler._notify_admin_started("test_bot", "telethon", bot=bot)
 
     bot.send_message.assert_awaited_once()
-    assert bot.send_message.await_args.args[0] == "47719525"
+    assert bot.send_message.await_args.args[0] == 47719525
     assert "1.2.3" in bot.send_message.await_args.args[1]
 
 

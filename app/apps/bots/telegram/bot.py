@@ -10,18 +10,26 @@ import singleton
 logger = logging.getLogger(__name__)
 
 
+def raw_telegram_token(token: str | None = None) -> str:
+    """Return the configured Telegram token from args or environment."""
+    return (token or os.getenv("TELEGRAM_TOKEN", "") or "").strip()
+
+
 class TelegramBot(metaclass=singleton.Singleton):
     """Lightweight Telegram config — transport is Telethon, not telebot."""
 
-    token = os.getenv("TELEGRAM_TOKEN")
-    me = os.getenv("TELEGRAM_BOT_NAME", "uln_ai_bot")
-    webhook_route = me
     bot_type = "telegram"
+
+    def __init__(self, token: str | None = None) -> None:
+        """Capture token/name at construction (after dotenv has loaded)."""
+        self.token = raw_telegram_token(token)
+        self.me = (os.getenv("TELEGRAM_BOT_NAME") or "mirzabenevisbot").strip()
+        self.webhook_route = self.me
 
     @classmethod
     def is_configured(cls) -> bool:
         """Return whether a Telegram bot token is available."""
-        return bool((cls.token or "").strip())
+        return bool(raw_telegram_token())
 
     @property
     def link(self) -> str:

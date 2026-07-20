@@ -6,6 +6,7 @@ from unittest.mock import AsyncMock, patch
 
 import pytest
 
+from apps.bots.common.auth_gate import VerifiedUser, VerifiedUserStatus
 from apps.bots.common.events import (
     CallbackEvent,
     FileRef,
@@ -28,6 +29,7 @@ class FakeRenderer:
     contact_requests: list[tuple[int | str, str]] = field(default_factory=list)
     typing: list[int | str] = field(default_factory=list)
     events: list[str] = field(default_factory=list)
+    _next_id: int = 1000
 
     async def send_typing(self, chat_id: int | str) -> None:
         self.typing.append(chat_id)
@@ -42,7 +44,8 @@ class FakeRenderer:
     ) -> object | None:
         self.sent.append((chat_id, text_value, reply_to))
         self.events.append("send_text")
-        return None
+        self._next_id += 1
+        return SimpleNamespace(id=self._next_id)
 
     async def send_inline_text(
         self,
@@ -53,7 +56,8 @@ class FakeRenderer:
     ) -> object | None:
         self.sent.append((chat_id, text_value, reply_to))
         self.events.append("send_inline_text")
-        return None
+        self._next_id += 1
+        return SimpleNamespace(id=self._next_id)
 
     async def edit_message(
         self,
@@ -104,6 +108,14 @@ def _verified_bot_user(**kwargs: object) -> BotUser:
     return BotUser(**defaults)
 
 
+def _ok_verified(**kwargs: object) -> tuple[VerifiedUserStatus, VerifiedUser]:
+    bot_user = _verified_bot_user(**kwargs)
+    return VerifiedUserStatus.ok, VerifiedUser(
+        usso_uid=str(bot_user.usso_user_id or "usso-1"),
+        bot_user=bot_user,
+    )
+
+
 @pytest.mark.asyncio
 async def test_handle_message_start_command() -> None:
     renderer = FakeRenderer()
@@ -115,8 +127,8 @@ async def test_handle_message_start_command() -> None:
     )
 
     with patch(
-        "apps.bots.common.handler.get_existing_usso_user",
-        AsyncMock(return_value=object()),
+        "apps.bots.common.handler.resolve_verified_user",
+        AsyncMock(return_value=_ok_verified(telegram_user_id="123")),
     ):
         await handle_message_event(event, _context(renderer))
 
@@ -137,15 +149,9 @@ async def test_handle_message_start_without_user_requests_contact() -> None:
         sender=Sender(id=123),
     )
 
-    with (
-        patch(
-            "apps.bots.common.handler.get_bot_user",
-            AsyncMock(return_value=None),
-        ),
-        patch(
-            "apps.bots.common.handler.get_existing_usso_user",
-            AsyncMock(return_value=None),
-        ),
+    with patch(
+        "apps.bots.common.handler.resolve_verified_user",
+        AsyncMock(return_value=(VerifiedUserStatus.needs_contact, None)),
     ):
         await handle_message_event(event, _context(renderer))
 
@@ -186,7 +192,7 @@ async def test_handle_message_no_user() -> None:
     await handle_message_event(event, _context(renderer))
 
     assert renderer.typing == [100]
-    assert renderer.sent
+    assert renderer.sent or renderer.contact_requests
 
 
 @pytest.mark.asyncio
@@ -201,8 +207,8 @@ async def test_handle_message_sends_ai_response() -> None:
 
     with (
         patch(
-            "apps.bots.common.handler.get_bot_user",
-            AsyncMock(return_value=_verified_bot_user(telegram_user_id="user-1")),
+            "apps.bots.common.handler.require_verified_user",
+            AsyncMock(return_value=("usso-1", _verified_bot_user())),
         ),
         patch(
             "apps.bots.common.handler.context.chat_completion",
@@ -216,7 +222,9 @@ async def test_handle_message_sends_ai_response() -> None:
         await handle_message_event(event, _context(renderer))
 
     chat_completion.assert_awaited_once()
-    assert renderer.sent[-1] == (100, "ai response", 10)
+    assert renderer.sent[-1][0] == 100
+    assert renderer.sent[-1][1] == "ai response"
+    assert renderer.sent[-1][2] == 10
 
 
 @pytest.mark.asyncio
@@ -239,8 +247,8 @@ async def test_handle_message_uses_group_session_id_and_thread() -> None:
 
     with (
         patch(
-            "apps.bots.common.handler.get_bot_user",
-            AsyncMock(return_value=_verified_bot_user(telegram_user_id="user-1")),
+            "apps.bots.common.handler.require_verified_user",
+            AsyncMock(return_value=("usso-1", _verified_bot_user())),
         ),
         patch(
             "apps.bots.common.handler.context.chat_completion",
@@ -253,7 +261,9 @@ async def test_handle_message_uses_group_session_id_and_thread() -> None:
     ):
         await handle_message_event(event, ctx)
 
-    chat_completion.assert_awaited_once_with(event, "hello group", locale="fa")
+    chat_completion.assert_awaited_once_with(
+        event, "hello group", locale="fa", renderer=renderer
+    )
     assert renderer.sent[-1][1] == "ai response"
 
 
@@ -269,12 +279,12 @@ async def test_handle_message_file_without_text_acknowledges_processing() -> Non
 
     with (
         patch(
-            "apps.bots.common.handler.get_bot_user",
-            AsyncMock(return_value=_verified_bot_user(telegram_user_id="user-1")),
+            "apps.bots.common.handler.require_verified_user",
+            AsyncMock(return_value=("usso-1", _verified_bot_user())),
         ),
         patch(
-            "apps.bots.common.handler.media_flow.submit_file_bytes",
-            AsyncMock(),
+            "apps.bots.common.files.media_flow.submit_file_bytes",
+            AsyncMock(return_value="task-1"),
         ) as submit_mock,
     ):
         await handle_message_event(event, _context(renderer))
@@ -295,11 +305,11 @@ async def test_async_url_uses_processing_message_for_webhook_delivery() -> None:
 
     with (
         patch(
-            "apps.bots.common.handler.get_bot_user",
-            AsyncMock(return_value=_verified_bot_user(telegram_user_id="user-1")),
+            "apps.bots.common.handler.require_verified_user",
+            AsyncMock(return_value=("usso-1", _verified_bot_user())),
         ),
         patch(
-            "apps.bots.common.handler.media_flow.submit_url",
+            "apps.bots.common.urls.media_flow.submit_url",
             AsyncMock(return_value="task-1"),
         ) as submit_mock,
     ):
@@ -322,8 +332,8 @@ async def test_handle_message_missing_session_id_returns_error() -> None:
 
     with (
         patch(
-            "apps.bots.common.handler.get_bot_user",
-            AsyncMock(return_value=_verified_bot_user(telegram_user_id="user-1")),
+            "apps.bots.common.handler.require_verified_user",
+            AsyncMock(return_value=("usso-1", _verified_bot_user())),
         ),
         patch(
             "apps.bots.common.handler.context.chat_completion",
@@ -351,8 +361,8 @@ async def test_handle_message_ai_exception_returns_error() -> None:
 
     with (
         patch(
-            "apps.bots.common.handler.get_bot_user",
-            AsyncMock(return_value=_verified_bot_user(telegram_user_id="user-1")),
+            "apps.bots.common.handler.require_verified_user",
+            AsyncMock(return_value=("usso-1", _verified_bot_user())),
         ),
         patch(
             "apps.bots.common.handler.context.chat_completion",

@@ -28,9 +28,9 @@ _CONTENT_EXT: dict[str, str] = {
 
 
 def _safe_filename(content_type: str, original_name: str) -> str:
+    if original_name:
+        return original_name
     ext = _CONTENT_EXT.get(content_type, "bin")
-    if original_name and "." in original_name:
-        ext = original_name.rsplit(".", 1)[-1].lower() or ext
     ts = datetime.now(UTC).strftime("%Y%m%d_%H%M%S")
     return f"{content_type}_{ts}.{ext}"
 
@@ -75,6 +75,7 @@ def toolkit_task_meta(
     content_type: str,
     user_id: str,
     locale: str = "fa",
+    file_name_hint: str | None = None,
 ) -> dict:
     """Build trace metadata for AI Toolkit tasks."""
     return {
@@ -82,11 +83,14 @@ def toolkit_task_meta(
         "source": "mirza-bot",
         "chat_id": event.chat_id,
         "message_id": response_message_id,
+        "reply_to_message_id": event.message_id,
         "bot_name": bot_name,
         "content_type": content_type,
         "user_id": user_id,
         "locale": locale,
+        "platform_user_id": str(event.sender.id) if event.sender else None,
         "telegram_user_id": str(event.sender.id) if event.sender else None,
+        "file_name_hint": file_name_hint,
     }
 
 
@@ -194,6 +198,7 @@ async def submit_file_bytes(
         content_type=content_type,
         user_id=user_id,
         locale=locale,
+        file_name_hint=file_name,
     )
     file_url = await upload_bytes(file_bytes, file_name)
 

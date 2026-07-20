@@ -31,10 +31,8 @@ class BaleToken(str):
 class BaleBot(AsyncTeleBot, metaclass=singleton.Singleton):
     """Singleton Bale bot (telebot transport — required for Bale)."""
 
-    token = os.getenv("BALE_BOT_TOKEN", "")
-    me = os.getenv("BALE_BOT_NAME", "mirza_bale_bot")
-    webhook_route = me
     last_update_id: int | None = None
+    bot_user_id: int | None = None
     _me_resolved = False
     _client_ready = False
 
@@ -47,6 +45,8 @@ class BaleBot(AsyncTeleBot, metaclass=singleton.Singleton):
         """Initialize the Bale bot client when a token is configured."""
         raw = raw_bale_token(token)
         self.lock = asyncio.Lock()
+        self.me = (os.getenv("BALE_BOT_NAME") or "mirza_bale_bot").strip()
+        self.webhook_route = self.me
         if not raw:
             self.token = ""
             self._client_ready = False
@@ -56,7 +56,7 @@ class BaleBot(AsyncTeleBot, metaclass=singleton.Singleton):
         AsyncTeleBot.__init__(
             self,
             BaleToken(raw),
-            parse_mode="markdownV2",
+            parse_mode="HTML",
             **kwargs,
         )
         self._client_ready = True
@@ -89,6 +89,7 @@ class BaleBot(AsyncTeleBot, metaclass=singleton.Singleton):
             if bot_info and bot_info.username:
                 self.me = bot_info.username
                 self.webhook_route = bot_info.username
+                self.bot_user_id = getattr(bot_info, "id", None)
                 self._me_resolved = True
         except Exception:
             logger.exception("Failed to resolve Bale bot name via getMe")

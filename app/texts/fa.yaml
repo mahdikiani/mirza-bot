@@ -9,6 +9,9 @@ buttons:
   translate: "ترجمه"
   summarize: "خلاصه کن"
   format_notes: "تبدیل به جزوه"
+  cleanup: "ویرایش ویس"
+  minutes: "صورت جلسه"
+  quiz: "کوییز"
   ask_question: "پرسیدن سوال"
   view_online: "مشاهده آنلاین"
   pay: "پرداخت"
@@ -21,6 +24,8 @@ buttons:
   delete: "حذف"
   share_contact: "ارسال شماره تماس"
   settings: "⚙️ تنظیمات"
+  models: "🧠 مدل‌ها"
+  info: "ℹ️ اطلاعات"
   change_model: "تغییر مدل"
   back: "🔙 برگشت"
 
@@ -59,7 +64,7 @@ messages:
   result_document_caption: "📄 فایل نتیجه"
   result_sent_as_file: "✅ نتیجه به صورت فایل ارسال شد"
   account_error: "خطا در دریافت اطلاعات حساب. لطفا دوباره تلاش کنید."
-  balance: "موجودی شما: *{quota}* {unit}"
+  balance: "موجودی شما: <b>{quota}</b> {unit}"
   products_error: "خطا در دریافت لیست محصولات."
   no_products: "محصولی برای نمایش وجود ندارد."
   products_page: "بسته‌های موجود (صفحه {page}):"
@@ -68,8 +73,8 @@ messages:
   inline_empty: "لطفا متن سوال خود را تایپ کنید."
   inline_title: "پاسخ هوش مصنوعی"
   profile: |
-    username: `{username}`
-    id: `{id}`
+    username: <code>{username}</code>
+    id: <code>{id}</code>
     first name: {first}
     last name: {last}
     language: {language}
@@ -82,6 +87,16 @@ messages:
   typed_phone_rejected: "لطفاً شماره تماس را فقط با دکمه «ارسال شماره تماس» بفرستید."
   task_error: "پردازش با خطا مواجه شد. لطفاً دوباره تلاش کنید."
   task_timeout: "پردازش بیش از حد طول کشید. لطفاً دوباره تلاش کنید."
+  info: |
+    🤖 <b>میرزا بات</b> — دستیار هوشمند چندمنظوره
+
+    • چت با AI
+    • تبدیل صدا/ویس به متن
+    • استخراج متن از عکس و PDF
+    • خواندن و خلاصه‌سازی لینک‌ها
+    • ترجمه، خلاصه‌سازی، جزوه‌سازی و...
+
+    برای مشاهده راهنما از /help استفاده کنید.
   settings_prompt: "تنظیمات:"
   language_changed: "زبان شما با موفقیت تغییر یافت."
   model_prompt: "مدل مورد نظر را انتخاب کنید:"

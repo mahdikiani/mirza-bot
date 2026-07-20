@@ -14,6 +14,9 @@ ACTION_PROMPTS = {
     "structure": "structure",
     "translate": "translate",
     "format_notes": "format_notes",
+    "cleanup": "cleanup",
+    "minutes": "minutes",
+    "quiz": "quiz",
 }
 
 
@@ -27,7 +30,7 @@ async def run_promptic_action(
 ) -> dict:
     """Dispatch a Promptic action asynchronously."""
     webhook_path = webhook_url_for("promptic_webhook")
-    return await PrompticClient.execute(
+    result = await PrompticClient.execute(
         prompt_name=prompt_name,
         input_variables={
             "content": content,
@@ -39,6 +42,17 @@ async def run_promptic_action(
         blocking=False,
         meta_data=meta_data,
     )
+    task_uid = str(result.get("uid") or result.get("id") or "") or None
+    if task_uid:
+        from apps.ai.pending_tasks import add as add_pending_task
+
+        await add_pending_task(
+            task_uid=task_uid,
+            task_type="promptic",
+            user_id=user_id,
+            meta_data=meta_data,
+        )
+    return result
 
 
 def map_callback_action(action: str) -> str | None:

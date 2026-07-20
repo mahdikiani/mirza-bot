@@ -113,11 +113,28 @@ class BaleEventRenderer:
         name = event.file.file_name or "file.bin"
         return bytes(data), name
 
+    async def delete_message(
+        self, chat_id: int | str, message_id: int | str
+    ) -> None:
+        try:
+            await self.bot.delete_message(chat_id, message_id)
+        except Exception:
+            logger.debug("Bale delete_message failed for chat_id=%s msg_id=%s", chat_id, message_id)
+
     async def download_document(
         self, chat_id: int | str, message_id: int | str
     ) -> bytes | None:
         try:
-            file_info = await self.bot.get_file(message_id)
+            msg = await self.bot.get_message(chat_id, message_id)
+            if not msg:
+                return None
+            document = getattr(msg, "document", None) or getattr(msg, "audio", None)
+            if not document:
+                return None
+            file_id = getattr(document, "file_id", None)
+            if not file_id:
+                return None
+            file_info = await self.bot.get_file(file_id)
             data = await self.bot.download_file(file_info.file_path)
             return bytes(data) if data else None
         except Exception:

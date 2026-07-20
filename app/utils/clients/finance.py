@@ -18,7 +18,7 @@ class ShopClient:
     @staticmethod
     async def list_products(offset: int = 0, limit: int = 5) -> dict:
         """Return paginated product list: {items, total, offset, limit}."""
-        async with service_client(Settings.shop_base_url) as c:
+        async with service_client(Settings.shop_base_url, Settings.shop_api_key) as c:
             resp = await c.get(
                 "/products",
                 params={"offset": offset, "limit": limit},
@@ -33,7 +33,7 @@ class ShopClient:
         callback_url: str,
     ) -> str:
         """Create an exclusive purchase and return the redirect URL."""
-        async with service_client(Settings.shop_base_url) as c:
+        async with service_client(Settings.shop_base_url, Settings.shop_api_key) as c:
             resp = await c.post(
                 "/baskets/items/purchase",
                 params={"user_id": user_id, "callback_url": callback_url},
@@ -49,7 +49,7 @@ class SaasClient:
     @staticmethod
     async def get_quota(asset: str, user_id: str) -> dict:
         """Return QuotasResponseSchema: {asset, quota, unit, user_id, variant}."""
-        async with service_client(Settings.saas_base_url) as c:
+        async with service_client(Settings.saas_base_url, Settings.saas_api_key) as c:
             resp = await c.get(
                 "/enrollments/quotas",
                 params={"asset": asset, "user_id": user_id},

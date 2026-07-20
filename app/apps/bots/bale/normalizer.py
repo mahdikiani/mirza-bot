@@ -95,10 +95,18 @@ def normalize_bale_message(payload: dict[str, Any], bot_name: str) -> MessageEve
     chat = payload.get("chat") or {}
     file_ref, content_type = _file_from_message(payload)
     reply_to = None
-    if reply_id := payload.get("reply_to_message", {}).get("message_id"):
+    if reply_payload := payload.get("reply_to_message"):
+        reply_from = reply_payload.get("from") or {}
+        reply_meta: dict[str, object] = {}
+        if sender_id := reply_from.get("id"):
+            reply_meta["sender_id"] = sender_id
+            reply_meta["from_user_id"] = sender_id
+        if reply_from.get("is_bot"):
+            reply_meta["is_bot_reply"] = True
         reply_to = MessageRef(
-            message_id=reply_id,
+            message_id=reply_payload.get("message_id", 0),
             chat_id=chat.get("id", 0),
+            metadata=reply_meta,
         )
 
     return MessageEvent(

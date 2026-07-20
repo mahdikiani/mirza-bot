@@ -4,15 +4,20 @@ from __future__ import annotations
 
 import logging
 
-from fastapi import APIRouter, BackgroundTasks
+from fastapi import APIRouter, BackgroundTasks, Depends
 
 from apps.ai.schemas import TaskWebhookPayload
 from apps.bots.common import keyboards as kb
 from apps.bots.common.delivery import deliver_md_result, is_insufficient_credit_error
 from apps.bots.common.renderer_registry import get_renderer
 from utils.i18n import text
+from utils.webhook_auth import require_webhook_api_key
 
-router = APIRouter(prefix="/ai", tags=["AI Webhooks"])
+router = APIRouter(
+    prefix="/ai",
+    tags=["AI Webhooks"],
+    dependencies=[Depends(require_webhook_api_key)],
+)
 logger = logging.getLogger(__name__)
 
 __all__ = [
@@ -88,6 +93,8 @@ async def _deliver_result(payload: TaskWebhookPayload, content_type: str) -> Non
         content_type=content_type,
         user_id=str(user_id) if user_id else None,
         locale=str(locale),
+        file_name_hint=meta.get("file_name_hint"),
+        reply_to=meta.get("reply_to_message_id"),
     )
     await pending_tasks.remove(payload.uid)
 

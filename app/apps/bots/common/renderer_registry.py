@@ -38,6 +38,10 @@ class BotRenderer(Protocol):
         inline_keyboard: InlineKeyboard | None = None,
     ) -> object | None: ...
 
+    async def delete_message(
+        self, chat_id: int | str, message_id: int | str
+    ) -> None: ...
+
     async def download_document(
         self, chat_id: int | str, message_id: int | str
     ) -> bytes | None: ...

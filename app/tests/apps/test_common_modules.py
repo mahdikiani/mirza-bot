@@ -122,10 +122,13 @@ class TestActions:
 
     @pytest.mark.asyncio
     async def test_run_promptic_action(self) -> None:
-        with patch(
-            "apps.bots.common.actions.PrompticClient.execute",
-            AsyncMock(return_value={"uid": "p1"}),
-        ) as execute_mock:
+        with (
+            patch(
+                "apps.bots.common.actions.PrompticClient.execute",
+                AsyncMock(return_value={"uid": "p1"}),
+            ) as execute_mock,
+            patch("apps.ai.pending_tasks.add", AsyncMock()) as add_mock,
+        ):
             result = await actions.run_promptic_action(
                 prompt_name="summarize",
                 content="text",
@@ -135,6 +138,7 @@ class TestActions:
             )
         assert result["uid"] == "p1"
         execute_mock.assert_awaited_once()
+        add_mock.assert_awaited_once()
 
 
 class TestSettings:

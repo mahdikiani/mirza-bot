@@ -138,6 +138,24 @@ class TelethonEventRenderer:
         self.client = client
         self.bot_name = bot_name
 
+    async def _send_message_html(
+        self,
+        chat_id: int | str,
+        text_value: str,
+        **kwargs: object,
+    ) -> object | None:
+        """Send with HTML so ``<b>…</b>`` in i18n strings renders; fall back to plain."""
+        try:
+            return await self.client.send_message(
+                chat_id, text_value, parse_mode="html", **kwargs
+            )
+        except Exception as exc:
+            if "parse" not in str(exc).lower() and "entities" not in str(exc).lower():
+                raise
+            logger.warning("HTML parse failed; sending plain text: %s", exc)
+            kwargs.pop("parse_mode", None)
+            return await self.client.send_message(chat_id, text_value, **kwargs)
+
     async def send_text(
         self,
         chat_id: int | str,
@@ -151,7 +169,7 @@ class TelethonEventRenderer:
         buttons = _telethon_buttons(reply_keyboard)
         if buttons is not None:
             kwargs["buttons"] = buttons
-        return await self.client.send_message(chat_id, text_value, **kwargs)
+        return await self._send_message_html(chat_id, text_value, **kwargs)
 
     async def edit_message(
         self,
@@ -161,12 +179,24 @@ class TelethonEventRenderer:
         inline_keyboard: InlineKeyboard | None = None,
     ) -> None:
         buttons = _telethon_buttons(inline_keyboard)
-        await self.client.edit_message(
-            chat_id,
-            message_id,
-            text,
-            buttons=buttons,
-        )
+        try:
+            await self.client.edit_message(
+                chat_id,
+                message_id,
+                text,
+                buttons=buttons,
+                parse_mode="html",
+            )
+        except Exception as exc:
+            if "parse" not in str(exc).lower() and "entities" not in str(exc).lower():
+                raise
+            logger.warning("HTML edit failed; editing as plain text: %s", exc)
+            await self.client.edit_message(
+                chat_id,
+                message_id,
+                text,
+                buttons=buttons,
+            )
 
     async def send_typing(self, chat_id: int | str) -> None:
         from telethon import functions, types
@@ -189,7 +219,7 @@ class TelethonEventRenderer:
         kwargs: dict[str, object] = {"buttons": buttons}
         if reply_to:
             kwargs["reply_to"] = reply_to
-        return await self.client.send_message(chat_id, text_value, **kwargs)
+        return await self._send_message_html(chat_id, text_value, **kwargs)
 
     async def send_upload_action(self, chat_id: int | str) -> None:
         async with self.client.action(chat_id, "document"):
@@ -203,6 +233,11 @@ class TelethonEventRenderer:
             text_value,
             reply_keyboard=contact_request_keyboard(),
         )
+
+    async def delete_message(
+        self, chat_id: int | str, message_id: int | str
+    ) -> None:
+        await self.client.delete_messages(chat_id, [message_id])
 
     async def download_document(
         self, chat_id: int | str, message_id: int | str
@@ -232,6 +267,7 @@ class TelethonEventRenderer:
             file=BytesIO(file_data),
             attributes=[DocumentAttributeFilename(file_name)],
             caption=caption or "",
+            parse_mode="html" if caption else None,
             reply_to=reply_to,
             buttons=buttons,
         )

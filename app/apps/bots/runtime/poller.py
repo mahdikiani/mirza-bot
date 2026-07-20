@@ -65,8 +65,8 @@ async def _poll_once(bot: object) -> None:
     if not updates:
         return
 
-    _advance_last_update_id(bot, updates)
     await _process_updates(bot, updates)
+    _advance_last_update_id(bot, updates)
 
 
 def _optional_attr(d: dict, msg: object, key: str, attr: str | None = None) -> None:
@@ -140,15 +140,30 @@ def _msg_to_dict(msg: object) -> dict:
     _attach_media(d, msg)
     reply_to = getattr(msg, "reply_to_message", None)
     if reply_to:
-        d["reply_to_message"] = {"message_id": getattr(reply_to, "message_id", 0)}
+        reply_dict: dict = {"message_id": getattr(reply_to, "message_id", 0)}
+        reply_from = getattr(reply_to, "from_user", None)
+        if reply_from:
+            reply_dict["from"] = {
+                "id": getattr(reply_from, "id", 0),
+                "is_bot": getattr(reply_from, "is_bot", False),
+            }
+        d["reply_to_message"] = reply_dict
     return d
 
 
 def _cb_to_dict(cb: object) -> dict:
+    msg = getattr(cb, "message", None)
     return {
         "id": getattr(cb, "id", ""),
         "data": getattr(cb, "data", ""),
         "from": {"id": getattr(getattr(cb, "from_user", None), "id", 0)},
+        "message": {
+            "message_id": getattr(msg, "message_id", 0),
+            "chat": {"id": getattr(getattr(msg, "chat", None), "id", 0)},
+            "text": getattr(msg, "text", ""),
+        } if msg else {},
+        "chat_id": getattr(getattr(getattr(cb, "message", None), "chat", None), "id", getattr(cb, "chat_id", 0)),
+        "message_id": getattr(getattr(cb, "message", None), "message_id", 0),
     }
 
 

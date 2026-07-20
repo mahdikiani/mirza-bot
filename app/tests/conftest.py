@@ -4,6 +4,8 @@ from collections.abc import AsyncGenerator, Generator
 
 # Tests should not connect to the Docker-only Redis hostname from local runs.
 os.environ.setdefault("REDIS_URI", "")
+# Empty webhook key disables auth in tests unless explicitly configured.
+os.environ.setdefault("WEBHOOK_API_KEY", "")
 
 import httpx
 import pytest

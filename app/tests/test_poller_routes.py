@@ -33,7 +33,7 @@ class TestPollerOnce:
         bot.process_new_updates = AsyncMock()
 
         with patch(
-            "apps.bots.bale.handler.process_bale_poll_updates", AsyncMock()
+            "apps.bots.runtime.poller._process_updates", AsyncMock()
         ) as process:
             await poller._poll_once(bot)
 
@@ -51,7 +51,7 @@ class TestPollerOnce:
         bot.process_new_updates = AsyncMock()
 
         with patch(
-            "apps.bots.bale.handler.process_bale_poll_updates", AsyncMock()
+            "apps.bots.runtime.poller._process_updates", AsyncMock()
         ) as process:
             await poller._poll_once(bot)
 
@@ -69,7 +69,7 @@ class TestPollerOnce:
         bot.get_updates = AsyncMock(return_value=[old_update, new_update])
         bot.process_new_updates = AsyncMock()
 
-        with patch("apps.bots.bale.handler.process_bale_poll_updates", AsyncMock()):
+        with patch("apps.bots.runtime.poller._process_updates", AsyncMock()):
             await poller._poll_once(bot)
 
         assert bot.last_update_id == 6

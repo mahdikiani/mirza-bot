@@ -24,8 +24,10 @@ async def deliver_md_result(
     content_type: str,
     user_id: str | None = None,
     locale: str = "fa",
+    file_name_hint: str | None = None,
+    reply_to: int | str | None = None,
 ) -> int | str | None:
-    """Edit a processing message with OCR/transcribe output and action buttons."""
+    """Send AI result as text or .md file."""
     threshold = (
         TRANSCRIBE_TEXT_THRESHOLD_CHARS
         if content_type in ("voice", "audio", "video")
@@ -34,20 +36,49 @@ async def deliver_md_result(
     keyboard = kb.md_result_keyboard(content_type)
 
     if len(result) <= threshold:
-        await renderer.edit_message(
-            chat_id=chat_id,
-            message_id=message_id,
-            text=result[:4096],
-            inline_keyboard=keyboard,
-        )
+        if reply_to:
+            sent = await renderer.send_text(
+                chat_id, result[:4096], reply_to=reply_to, reply_keyboard=None,
+            )
+            sent_id = getattr(sent, "id", None) or getattr(sent, "message_id", None)
+        else:
+            try:
+                await renderer.edit_message(
+                    chat_id=chat_id,
+                    message_id=message_id,
+                    text=result[:4096],
+                    inline_keyboard=keyboard,
+                )
+            except Exception:
+                sent = await renderer.send_text(
+                    chat_id, result[:4096], reply_to=reply_to,
+                )
+                sent_id = getattr(sent, "id", None) or getattr(sent, "message_id", None)
+            else:
+                sent_id = message_id
+        if message_id and sent_id != message_id:
+            try:
+                await renderer.delete_message(chat_id, message_id)
+            except Exception:
+                logger.debug(
+                    "Failed to delete processing message %s for chat %s",
+                    message_id, chat_id,
+                )
         remaining = result[4096:]
         while remaining:
             chunk = remaining[:4096]
-            await renderer.send_text(chat_id, chunk, reply_to=None)
+            await renderer.send_text(chat_id, chunk, reply_to=reply_to)
             remaining = remaining[4096:]
-        return message_id
+        return sent_id
 
-    file_name = f"result_{(user_id or 'unknown')[:8]}.md"
+    base_name = file_name_hint or f"result_{(user_id or 'unknown')[:8]}"
+    logger.info(
+        "deliver_md_result: file_name_hint=%s base_name=%s",
+        file_name_hint, base_name,
+    )
+    if not base_name.lower().endswith(".md"):
+        base_name = base_name.rsplit(".", 1)[0] if "." in base_name else base_name
+    file_name = f"{base_name}.md"
     file_bytes = result.encode("utf-8")
     media_url: str | None = None
     try:
@@ -56,11 +87,6 @@ async def deliver_md_result(
         logger.exception("Failed to upload MD result")
 
     keyboard = kb.md_result_keyboard(content_type, media_url=media_url)
-    await renderer.edit_message(
-        chat_id=chat_id,
-        message_id=message_id,
-        text=text("messages.result_sent_as_file", locale=locale),
-    )
     try:
         sent = await renderer.send_document(
             chat_id=chat_id,
@@ -68,7 +94,16 @@ async def deliver_md_result(
             file_name=file_name,
             caption=text("messages.result_document_caption", locale=locale),
             inline_keyboard=keyboard,
+            reply_to=reply_to,
         )
+        if message_id:
+            try:
+                await renderer.delete_message(chat_id, message_id)
+            except Exception:
+                logger.debug(
+                    "Failed to delete processing message %s for chat %s",
+                    message_id, chat_id,
+                )
         return getattr(sent, "id", None) if sent else None
     except Exception:
         logger.exception("Failed to send result document")

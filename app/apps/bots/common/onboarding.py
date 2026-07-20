@@ -4,6 +4,10 @@ from __future__ import annotations
 
 import logging
 
+from apps.accounts.handlers import (
+    invalidate_usso_user_cache,
+    usso_identifier_type_for_platform,
+)
 from apps.accounts.clients import usso_accounts_client
 from apps.bots.common import models
 from apps.bots.common.events import MessageEvent
@@ -23,19 +27,29 @@ def detect_locale(language_code: str | None) -> str:
     return code if code in SUPPORTED_LOCALES else "fa"
 
 
-async def get_bot_user(telegram_user_id: str) -> models.BotUser | None:
-    """Return the local bot user record for a Telegram user id."""
-    return await models.BotUser.find_one({"telegram_user_id": telegram_user_id})
+async def get_bot_user(messenger_user_id: str) -> models.BotUser | None:
+    """Return the local bot user record for a messenger-scoped user id."""
+    by_platform = await models.BotUser.find_one({
+        "platform_user_id": messenger_user_id,
+    })
+    if by_platform:
+        return by_platform
+    return await models.BotUser.find_one({"telegram_user_id": messenger_user_id})
 
 
-async def _sync_usso_user(telegram_id: str, phone_number: str) -> str:
+async def _sync_usso_user(
+    messenger_id: str,
+    phone_number: str,
+    platform: str,
+) -> str:
     """
     Best-effort sync to USSO. Returns the USSO uid, or "" if unavailable.
 
     First tries to find an existing USSO user by phone number (so that a user
     who already onboarded on another platform gets their Telegram linked to
-    the same account). Falls back to looking up or creating by telegram_id.
+    the same account). Falls back to looking up or creating by platform identifier.
     """
+    identifier_type = usso_identifier_type_for_platform(platform)
     try:
         async with usso_accounts_client() as usso:
             normalized_phone = normalize_phone(phone_number)
@@ -43,14 +57,20 @@ async def _sync_usso_user(telegram_id: str, phone_number: str) -> str:
             if existing:
                 usso_uid = str(existing.uid)
                 try:
-                    await usso.link_identifier(usso_uid, "telegram_id", telegram_id)
+                    await usso.link_identifier(
+                        usso_uid, identifier_type, messenger_id
+                    )
                 except Exception:
-                    logger.exception("Failed to link telegram_id for user %s", usso_uid)
+                    logger.exception(
+                        "Failed to link %s for user %s",
+                        identifier_type,
+                        usso_uid,
+                    )
                 return usso_uid
 
             usso_user = await usso.get_or_create_user_by_identifier(
-                "telegram_id",
-                telegram_id,
+                identifier_type,
+                messenger_id,
             )
             usso_uid = str(usso_user.uid)
             try:
@@ -60,9 +80,10 @@ async def _sync_usso_user(telegram_id: str, phone_number: str) -> str:
             return usso_uid
     except Exception:
         logger.warning(
-            "USSO service unavailable during onboarding for telegram_id=%s; "
+            "USSO service unavailable during onboarding for %s=%s; "
             "continuing with a local-only account (will sync later).",
-            telegram_id,
+            identifier_type,
+            messenger_id,
             exc_info=True,
         )
         return ""
@@ -79,16 +100,18 @@ async def get_or_create_bot_user_from_contact(
     locally (unblocking the user) with ``usso_synced=False`` so it can be
     reconciled with USSO once the service recovers.
     """
-    telegram_id = str(event.sender.id) if event.sender else ""
+    messenger_id = str(event.sender.id) if event.sender else ""
     locale = detect_locale(event.metadata.get("language_code"))
 
-    usso_uid = await _sync_usso_user(telegram_id, phone_number)
+    usso_uid = await _sync_usso_user(messenger_id, phone_number, event.platform)
     synced = bool(usso_uid)
+    id_type = usso_identifier_type_for_platform(event.platform)
 
-    existing = await get_bot_user(telegram_id)
+    existing = await get_bot_user(messenger_id)
     if existing:
         existing.phone_number = phone_number
         existing.phone_verified = True
+        existing.platform_user_id = messenger_id
         if synced:
             existing.usso_user_id = usso_uid
             existing.usso_synced = True
@@ -96,11 +119,16 @@ async def get_or_create_bot_user_from_contact(
             existing.usso_synced = existing.usso_synced and bool(existing.usso_user_id)
         existing.preferred_language = locale
         await existing.save()
+        await invalidate_usso_user_cache({
+            "identifier_type": id_type,
+            "identifier": messenger_id,
+        })
         return existing
 
     bot_user = models.BotUser(
-        user_id=usso_uid or telegram_id,
-        telegram_user_id=telegram_id,
+        user_id=usso_uid or messenger_id,
+        telegram_user_id=messenger_id,
+        platform_user_id=messenger_id,
         usso_user_id=usso_uid,
         usso_synced=synced,
         preferred_language=locale,
@@ -109,6 +137,10 @@ async def get_or_create_bot_user_from_contact(
         platform=event.platform,
     )
     await bot_user.save()
+    await invalidate_usso_user_cache({
+        "identifier_type": id_type,
+        "identifier": messenger_id,
+    })
     return bot_user
 
 
