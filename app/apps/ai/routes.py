@@ -115,6 +115,7 @@ async def _deliver_result(payload: TaskWebhookPayload, content_type: str) -> Non
         file_name_hint=meta.get("file_name_hint"),
         reply_to=meta.get("reply_to_message_id"),
         include_actions=not user_prompt,
+        processing_message_id=response_message_id,
     )
     await pending_tasks.remove(payload.uid)
 

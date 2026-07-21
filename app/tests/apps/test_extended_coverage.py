@@ -436,7 +436,7 @@ async def test_deliver_result_uses_renderer_registry() -> None:
     )
     with patch("apps.ai.pending_tasks.remove", AsyncMock()):
         await _deliver_result(payload, "document")
-    renderer.send_text.assert_awaited()
+    renderer.send_inline_text.assert_awaited()
 
 
 @pytest.mark.asyncio
@@ -458,6 +458,7 @@ async def test_notify_task_error_insufficient_credits_renderer() -> None:
 
 
 @pytest.mark.asyncio
+
 async def test_deliver_md_result_short_text() -> None:
     from apps.bots.common.delivery import deliver_md_result
 
@@ -470,6 +471,7 @@ async def test_deliver_md_result_short_text() -> None:
         content_type="document",
         user_id="u1",
         locale="fa",
+        include_actions=False,
     )
     renderer.send_text.assert_awaited_once()
 

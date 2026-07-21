@@ -14,6 +14,32 @@ TEXT_CHUNK_LIMIT = 4096
 FILE_THRESHOLD = 4096
 
 
+def _result_name(content_type: str, user_id: str | None, hint: str | None) -> str:
+    if hint:
+        return hint
+    name_map = {
+        "document": "ocr",
+        "voice": "transcribe",
+        "audio": "transcribe",
+        "video": "transcribe",
+        "url": "webpage",
+        "youtube": "youtube",
+        "promptic": "action",
+    }
+    prefix = name_map.get(content_type, content_type)
+    suffix = (user_id or "unknown")[:8]
+    return f"{prefix}_{suffix}"
+
+
+async def _try_delete(renderer: object, chat_id: int | str, msg_id: int | str | None) -> None:
+    if msg_id is None:
+        return
+    try:
+        await renderer.delete_message(chat_id, msg_id)
+    except Exception:
+        logger.debug("Failed to delete message %s in chat %s", msg_id, chat_id)
+
+
 async def deliver_result(
     renderer: object,
     *,
@@ -25,12 +51,13 @@ async def deliver_result(
     locale: str = "fa",
     file_name_hint: str | None = None,
     include_actions: bool = True,
+    processing_message_id: int | str | None = None,
 ) -> int | str | None:
     """Send AI result — always as reply to the original user message.
 
     - Result ≤ 4096 chars → send as text (chunked if needed)
     - Result > 4096 chars  → upload as .md file and send as document
-    The "processing…" message is always deleted afterwards.
+    - processing_message_id is deleted after successful delivery.
     """
     keyboard = kb.md_result_keyboard(content_type) if include_actions else None
 
@@ -51,6 +78,8 @@ async def deliver_result(
             )
         sent_id = getattr(sent, "id", None) or getattr(sent, "message_id", None)
 
+        await _try_delete(renderer, chat_id, processing_message_id)
+
         remaining = result[TEXT_CHUNK_LIMIT:]
         while remaining:
             chunk = remaining[:TEXT_CHUNK_LIMIT]
@@ -58,7 +87,7 @@ async def deliver_result(
             remaining = remaining[TEXT_CHUNK_LIMIT:]
         return sent_id
 
-    base_name = file_name_hint or f"result_{(user_id or 'unknown')[:8]}"
+    base_name = _result_name(content_type, user_id, file_name_hint)
     if not base_name.lower().endswith(".md"):
         base_name = base_name.rsplit(".", 1)[0] if "." in base_name else base_name
     file_name = f"{base_name}.md"
@@ -84,6 +113,7 @@ async def deliver_result(
             inline_keyboard=keyboard,
             reply_to=message_id,
         )
+        await _try_delete(renderer, chat_id, processing_message_id)
         return getattr(sent, "id", None) if sent else None
     except Exception:
         logger.exception("Failed to send result document")
@@ -102,6 +132,7 @@ async def deliver_md_result(
     file_name_hint: str | None = None,
     reply_to: int | str | None = None,
     include_actions: bool = True,
+    processing_message_id: int | str | None = None,
 ) -> int | str | None:
     """Legacy wrapper; delegates to deliver_result."""
     return await deliver_result(
@@ -114,6 +145,7 @@ async def deliver_md_result(
         locale=locale,
         file_name_hint=file_name_hint,
         include_actions=include_actions,
+        processing_message_id=processing_message_id,
     )
 
 
