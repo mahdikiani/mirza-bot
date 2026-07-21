@@ -76,6 +76,7 @@ def toolkit_task_meta(
     user_id: str,
     locale: str = "fa",
     file_name_hint: str | None = None,
+    user_prompt: str | None = None,
 ) -> dict:
     """Build trace metadata for AI Toolkit tasks."""
     return {
@@ -91,6 +92,7 @@ def toolkit_task_meta(
         "platform_user_id": str(event.sender.id) if event.sender else None,
         "telegram_user_id": str(event.sender.id) if event.sender else None,
         "file_name_hint": file_name_hint,
+        "user_prompt": user_prompt,
     }
 
 
@@ -188,6 +190,7 @@ async def submit_file_bytes(
     content_type: str,
     user_id: str,
     locale: str = "fa",
+    user_prompt: str | None = None,
 ) -> str | None:
     """Upload bytes and dispatch OCR or transcribe."""
     file_name = _safe_filename(content_type, file_name)
@@ -199,6 +202,7 @@ async def submit_file_bytes(
         user_id=user_id,
         locale=locale,
         file_name_hint=file_name,
+        user_prompt=user_prompt,
     )
     file_url = await upload_bytes(file_bytes, file_name)
 
@@ -230,6 +234,7 @@ async def submit_url(
     response_message_id: int | str,
     user_id: str,
     locale: str = "fa",
+    user_prompt: str | None = None,
 ) -> str | None:
     """Route a URL to the correct AI Toolkit task."""
     meta = toolkit_task_meta(
@@ -239,6 +244,7 @@ async def submit_url(
         content_type="url",
         user_id=user_id,
         locale=locale,
+        user_prompt=user_prompt,
     )
     kind = classify_url(url)
 

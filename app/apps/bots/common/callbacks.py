@@ -137,6 +137,39 @@ async def handle_callback_event(
         )
         return
 
+    if data == "convert:menu":
+        await ctx.renderer.edit_message(
+            event.chat_id,
+            event.message_id,
+            text("messages.convert_prompt", locale=locale),
+            inline_keyboard=kb.convert_keyboard(),
+        )
+        return
+
+    if data == "convert:back":
+        await ctx.renderer.edit_message(
+            event.chat_id,
+            event.message_id,
+            text("messages.convert_prompt", locale=locale),
+        )
+        return
+
+    if data == "convert:pdf":
+        await ctx.renderer.answer_callback(event.callback_id, "🔜 به زودی")
+        return
+
+    if data == "convert:docx":
+        await ctx.renderer.answer_callback(event.callback_id, "🔜 به زودی")
+        return
+
+    if data == "convert:audio":
+        await ctx.renderer.answer_callback(event.callback_id, "🔜 به زودی")
+        return
+
+    if data == "convert:viewer":
+        await ctx.renderer.answer_callback(event.callback_id, "🔜 به زودی")
+        return
+
     if data.startswith("action:"):
         verified = await require_verified_callback(event, ctx, locale)
         if not verified:

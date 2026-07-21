@@ -27,6 +27,9 @@ buttons:
   models: "🧠 مدل‌ها"
   info: "ℹ️ اطلاعات"
   change_model: "تغییر مدل"
+  convert: "🔄 تبدیل"
+  word: "📄 Word (DOCX)"
+  audio_read: "🔊 خواندن صوتی"
   back: "🔙 برگشت"
 
 messages:
@@ -85,6 +88,7 @@ messages:
   onboarding_error: "مشکلی در تایید شماره تماس رخ داد. لطفاً چند لحظه دیگر دوباره تلاش کنید."
   contact_mismatch: "لطفاً شماره تماس خودتان را با دکمه ارسال کنید."
   typed_phone_rejected: "لطفاً شماره تماس را فقط با دکمه «ارسال شماره تماس» بفرستید."
+  convert_prompt: "تبدیل به:"
   task_error: "پردازش با خطا مواجه شد. لطفاً دوباره تلاش کنید."
   task_timeout: "پردازش بیش از حد طول کشید. لطفاً دوباره تلاش کنید."
   info: |

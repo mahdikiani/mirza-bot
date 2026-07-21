@@ -2,11 +2,13 @@
 
 from __future__ import annotations
 
+import asyncio
 import logging
 
-from apps.ai.clients import CompletionClient
+from apps.ai.clients import CompletionClient, InsufficientCreditsError
 from apps.bots.common import models
 from apps.bots.common.events import MessageEvent
+from server.config import Settings
 
 logger = logging.getLogger(__name__)
 
@@ -156,8 +158,60 @@ async def chat_completion(
         model = await get_user_model(sender_id)
     try:
         return await CompletionClient.complete(messages, model=model)
+    except InsufficientCreditsError:
+        raise
     except Exception:
         logger.exception("Completion error")
         from utils.i18n import text as t
 
         return t("messages.ai_error", locale=locale)
+
+
+async def extracted_content_completion(
+    content: str,
+    prompt: str,
+    *,
+    sender_id: int | str | None = None,
+    locale: str = "fa",
+) -> str:
+    """Answer a prompt after the referenced attachment has been extracted."""
+    model = None
+    if sender_id:
+        from apps.bots.common.settings import get_user_model
+
+        model = await get_user_model(str(sender_id))
+    message = f"[محتوای استخراج‌شده]\n{content}\n\n[درخواست کاربر]\n{prompt}"
+    try:
+        return await CompletionClient.complete(
+            [{"role": "user", "content": message}], model
+        )
+    except InsufficientCreditsError:
+        raise
+    except Exception:
+        logger.exception("Extracted-content completion error")
+        from utils.i18n import text as t
+
+        return t("messages.ai_error", locale=locale)
+
+
+async def notify_admin_insufficient_credits(
+    renderer: object, chat_id: int | str
+) -> None:
+    """Notify the configured admin about exhausted OpenRouter credits."""
+    admin_id = Settings.admin_chat_id
+    if not admin_id:
+        return
+    if isinstance(admin_id, str) and admin_id.isdecimal():
+        admin_id = int(admin_id)
+    if str(admin_id) == str(chat_id):
+        return
+    try:
+        await asyncio.wait_for(
+            renderer.send_text(  # type: ignore[union-attr]
+                admin_id,
+                "⚠️ اعتبار OpenRouter تمام شده است. لطفاً حساب را شارژ کنید.",
+            ),
+            timeout=10,
+        )
+    except Exception:
+        logger.exception("Failed to notify admin about insufficient credits")

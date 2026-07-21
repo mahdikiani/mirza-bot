@@ -431,11 +431,12 @@ async def test_deliver_result_uses_renderer_registry() -> None:
             "message_id": 2,
             "user_id": "u1",
             "locale": "fa",
+            "reply_to_message_id": 1,
         },
     )
     with patch("apps.ai.pending_tasks.remove", AsyncMock()):
         await _deliver_result(payload, "document")
-    renderer.edit_message.assert_awaited()
+    renderer.send_text.assert_awaited()
 
 
 @pytest.mark.asyncio
@@ -470,7 +471,7 @@ async def test_deliver_md_result_short_text() -> None:
         user_id="u1",
         locale="fa",
     )
-    renderer.edit_message.assert_awaited_once()
+    renderer.send_text.assert_awaited_once()
 
 
 @pytest.mark.asyncio
@@ -616,22 +617,22 @@ async def test_handler_inline_query() -> None:
 
 
 @pytest.mark.asyncio
-async def test_deliver_md_result_chunked_inline_text() -> None:
+async def test_deliver_md_result_sends_as_file_when_long() -> None:
     from apps.bots.common.delivery import deliver_md_result
+    from apps.bots.common.delivery import FILE_THRESHOLD
 
     renderer = AsyncMock()
-    long_inline = "a" * 5000
+    long_text = "a" * (FILE_THRESHOLD + 1)
     await deliver_md_result(
         renderer,
         chat_id=1,
         message_id=2,
-        result=long_inline,
+        result=long_text,
         content_type="document",
         user_id="u1",
         locale="fa",
     )
-    assert renderer.edit_message.await_count == 1
-    assert renderer.send_text.await_count >= 1
+    assert renderer.send_document.await_count == 1
 
 
 @pytest.mark.asyncio
@@ -712,12 +713,12 @@ async def test_handler_docx_file_added_to_chat() -> None:
 
 
 @pytest.mark.asyncio
-async def test_deliver_md_result_upload_failure_still_edits() -> None:
-    from apps.bots.common import media_flow
+async def test_deliver_md_result_upload_failure_still_sends() -> None:
+    from apps.bots.common.delivery import FILE_THRESHOLD
     from apps.bots.common.delivery import deliver_md_result
 
     renderer = AsyncMock()
-    long_text = "x" * (media_flow.MD_FILE_THRESHOLD_CHARS + 1)
+    long_text = "x" * (FILE_THRESHOLD + 1)
     with patch(
         "apps.bots.common.delivery.MediaClient.upload",
         AsyncMock(side_effect=RuntimeError("upload failed")),

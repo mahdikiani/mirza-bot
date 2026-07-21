@@ -2,7 +2,9 @@
 
 from __future__ import annotations
 
+from apps.ai.clients import InsufficientCreditsError
 from apps.bots.common import context, media_flow
+from apps.bots.common.delivery import deliver_md_result
 from apps.bots.common.events import MessageEvent
 from apps.bots.common.handler_context import BotRuntimeContext, sent_message_id
 from apps.bots.common.link_router import LinkKind, classify_urls_in_text
@@ -38,16 +40,35 @@ async def handle_urls_message(
             reply_to=event.message_id,
         )
         contents = await media_flow.fetch_webpages_parallel(webpage_urls)
-        combined_parts = [part for part in [user_text, *contents] if part]
-        combined = "\n\n".join(combined_parts)
-        response = await context.chat_completion(
-            event, combined, locale=locale, renderer=ctx.renderer
-        )
-        await ctx.renderer.edit_message(
-            event.chat_id,
-            sent_message_id(reading_msg, event.message_id),
-            response[: ctx.capabilities.max_text_chars or 4096],
-        )
+        combined = "\n\n".join(contents)
+        if user_text:
+            try:
+                response = await context.extracted_content_completion(
+                    combined,
+                    user_text,
+                    sender_id=event.sender.id if event.sender else None,
+                    locale=locale,
+                )
+            except InsufficientCreditsError:
+                await context.notify_admin_insufficient_credits(
+                    ctx.renderer, event.chat_id
+                )
+                response = text("messages.insufficient_credits", locale=locale)
+            await ctx.renderer.edit_message(
+                event.chat_id,
+                sent_message_id(reading_msg, event.message_id),
+                response[: ctx.capabilities.max_text_chars or 4096],
+            )
+        else:
+            await deliver_md_result(
+                ctx.renderer,
+                chat_id=event.chat_id,
+                message_id=sent_message_id(reading_msg, event.message_id),
+                result=combined,
+                content_type="url",
+                user_id=user_id,
+                locale=locale,
+            )
         return
 
     for url in async_urls:
@@ -63,6 +84,7 @@ async def handle_urls_message(
             response_message_id=sent_message_id(processing_msg, event.message_id),
             user_id=user_id,
             locale=locale,
+            user_prompt=user_text or None,
         )
         if not task_uid:
             await ctx.renderer.edit_message(
@@ -73,16 +95,32 @@ async def handle_urls_message(
     if webpage_urls:
         contents = await media_flow.fetch_webpages_parallel(webpage_urls)
         if contents:
-            combined = (
-                "\n\n".join([user_text, *contents])
-                if user_text
-                else "\n\n".join(contents)
-            )
-            response = await context.chat_completion(
-                event, combined, locale=locale, renderer=ctx.renderer
-            )
-            await ctx.renderer.send_text(
-                event.chat_id,
-                response[: ctx.capabilities.max_text_chars or 4096],
-                reply_to=event.message_id,
-            )
+            combined = "\n\n".join(contents)
+            if user_text:
+                try:
+                    response = await context.extracted_content_completion(
+                        combined,
+                        user_text,
+                        sender_id=event.sender.id if event.sender else None,
+                        locale=locale,
+                    )
+                except InsufficientCreditsError:
+                    await context.notify_admin_insufficient_credits(
+                        ctx.renderer, event.chat_id
+                    )
+                    response = text("messages.insufficient_credits", locale=locale)
+                await ctx.renderer.send_text(
+                    event.chat_id,
+                    response[: ctx.capabilities.max_text_chars or 4096],
+                    reply_to=event.message_id,
+                )
+            else:
+                await deliver_md_result(
+                    ctx.renderer,
+                    chat_id=event.chat_id,
+                    message_id=event.message_id,
+                    result=combined,
+                    content_type="url",
+                    user_id=user_id,
+                    locale=locale,
+                )

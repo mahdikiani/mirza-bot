@@ -293,6 +293,39 @@ async def test_handle_message_file_without_text_acknowledges_processing() -> Non
 
 
 @pytest.mark.asyncio
+async def test_handle_message_file_with_caption_uses_ocr() -> None:
+    """A document caption must not route the attachment to chat completion."""
+    renderer = FakeRenderer()
+    event = MessageEvent(
+        chat_id=100,
+        message_id=10,
+        sender=Sender(id="user-1"),
+        caption="این PDF را بررسی کن",
+        content_type="document",
+        file=FileRef(file_id="file-1", file_name="doc.pdf"),
+    )
+
+    with (
+        patch(
+            "apps.bots.common.handler.require_verified_user",
+            AsyncMock(return_value=("usso-1", _verified_bot_user())),
+        ),
+        patch(
+            "apps.bots.common.files.media_flow.submit_file_bytes",
+            AsyncMock(return_value="task-1"),
+        ) as submit_mock,
+        patch(
+            "apps.bots.common.handler.context.chat_completion",
+            AsyncMock(),
+        ) as chat_completion,
+    ):
+        await handle_message_event(event, _context(renderer))
+
+    submit_mock.assert_awaited_once()
+    chat_completion.assert_not_awaited()
+
+
+@pytest.mark.asyncio
 async def test_async_url_uses_processing_message_for_webhook_delivery() -> None:
     renderer = FakeRenderer()
     renderer.send_text = AsyncMock(return_value=SimpleNamespace(id=77))

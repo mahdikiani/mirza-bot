@@ -8,11 +8,19 @@ from __future__ import annotations
 
 from typing import Any
 
+from server.config import Settings
 from utils.clients.toolkit import (
     ToolkitTaskNotCompletedError,
     completed_result_or_raise,
     toolkit_client,
 )
+
+
+class InsufficientCreditsError(RuntimeError):
+    """Raised when the user's OpenRouter credits are insufficient."""
+
+
+_WEBHOOK_HEADERS = {"x-api-key": Settings.webhook_api_key} if Settings.webhook_api_key else None
 
 
 class OCRClient:
@@ -26,15 +34,18 @@ class OCRClient:
         meta_data: dict | None = None,
     ) -> dict:
         """Submit an OCR task to AI Toolkit."""
+        payload: dict[str, object] = {
+            "file_url": file_url,
+            "user_id": user_id,
+            "webhook_url": webhook_url,
+            "meta_data": meta_data or {},
+        }
+        if _WEBHOOK_HEADERS:
+            payload["webhook_custom_headers"] = _WEBHOOK_HEADERS
         async with toolkit_client() as c:
             resp = await c.post(
                 "/ocrs",
-                json={
-                    "file_url": file_url,
-                    "user_id": user_id,
-                    "webhook_url": webhook_url,
-                    "meta_data": meta_data or {},
-                },
+                json=payload,
             )
             resp.raise_for_status()
             return resp.json()
@@ -59,15 +70,18 @@ class TranscribeClient:
         meta_data: dict | None = None,
     ) -> dict:
         """Submit a transcription task to AI Toolkit."""
+        payload: dict[str, object] = {
+            "file_url": file_url,
+            "user_id": user_id,
+            "webhook_url": webhook_url,
+            "meta_data": meta_data or {},
+        }
+        if _WEBHOOK_HEADERS:
+            payload["webhook_custom_headers"] = _WEBHOOK_HEADERS
         async with toolkit_client() as c:
             resp = await c.post(
                 "/transcribes",
-                json={
-                    "file_url": file_url,
-                    "user_id": user_id,
-                    "webhook_url": webhook_url,
-                    "meta_data": meta_data or {},
-                },
+                json=payload,
             )
             resp.raise_for_status()
             return resp.json()
@@ -95,6 +109,8 @@ class YoutubeClient:
         payload: dict[str, object] = {"video_id": video_id, "user_id": user_id}
         if webhook_url:
             payload["webhook_url"] = webhook_url
+        if _WEBHOOK_HEADERS:
+            payload["webhook_custom_headers"] = _WEBHOOK_HEADERS
         if meta_data:
             payload["meta_data"] = meta_data
         async with toolkit_client() as c:
@@ -129,6 +145,7 @@ class WebpageClient:
                     "url": url,
                     "user_id": user_id,
                     "webhook_url": webhook_url,
+                    "webhook_custom_headers": _WEBHOOK_HEADERS,
                     "meta_data": meta_data or {},
                 },
             )
@@ -164,6 +181,8 @@ class PrompticClient:
         payload: dict[str, Any] = {"input_variables": input_variables}
         if webhook_url:
             payload["webhook_url"] = webhook_url
+        if _WEBHOOK_HEADERS:
+            payload["webhook_custom_headers"] = _WEBHOOK_HEADERS
         if meta:
             payload["meta_data"] = meta
 
@@ -219,6 +238,8 @@ class CompletionClient:
 
         async with toolkit_client(request_timeout=120.0) as c:
             resp = await c.post("/chat/completions", json=body)
+            if resp.status_code == 402:
+                raise InsufficientCreditsError()
             resp.raise_for_status()
             data = resp.json()
             choices = data.get("choices") or []
@@ -230,6 +251,7 @@ class CompletionClient:
 
 __all__ = [
     "CompletionClient",
+    "InsufficientCreditsError",
     "OCRClient",
     "PrompticClient",
     "ToolkitTaskNotCompletedError",

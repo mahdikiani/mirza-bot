@@ -68,6 +68,7 @@ async def _deliver_result(payload: TaskWebhookPayload, content_type: str) -> Non
     bot_name = meta.get("bot_name")
     user_id = meta.get("user_id")
     locale = meta.get("locale", "fa")
+    user_prompt = str(meta.get("user_prompt") or "").strip()
 
     if not (chat_id and bot_name):
         logger.error("Webhook missing chat_id/bot_name: %s", meta)
@@ -85,6 +86,24 @@ async def _deliver_result(payload: TaskWebhookPayload, content_type: str) -> Non
         logger.error("No renderer registered for bot %s", bot_name)
         return
 
+    if user_prompt:
+        from apps.bots.common.context import (
+            InsufficientCreditsError,
+            extracted_content_completion,
+            notify_admin_insufficient_credits,
+        )
+
+        try:
+            result = await extracted_content_completion(
+                result,
+                user_prompt,
+                sender_id=meta.get("platform_user_id"),
+                locale=str(locale),
+            )
+        except InsufficientCreditsError:
+            await notify_admin_insufficient_credits(renderer, chat_id)
+            result = text("messages.insufficient_credits", locale=str(locale))
+
     await deliver_md_result(
         renderer,
         chat_id=chat_id,
@@ -95,6 +114,7 @@ async def _deliver_result(payload: TaskWebhookPayload, content_type: str) -> Non
         locale=str(locale),
         file_name_hint=meta.get("file_name_hint"),
         reply_to=meta.get("reply_to_message_id"),
+        include_actions=not user_prompt,
     )
     await pending_tasks.remove(payload.uid)
 

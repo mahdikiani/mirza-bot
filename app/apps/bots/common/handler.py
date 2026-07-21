@@ -8,7 +8,7 @@ from __future__ import annotations
 
 import logging
 
-from apps.ai.clients import CompletionClient
+from apps.ai.clients import CompletionClient, InsufficientCreditsError
 from apps.bots.common import billing, context, settings
 from apps.bots.common import keyboards as kb
 from apps.bots.common.auth_gate import VerifiedUserStatus, resolve_verified_user
@@ -283,7 +283,7 @@ async def handle_message_event(
     ):
         return
 
-    if event.file and not text_value:
+    if event.file:
         file_name = event.file.file_name or "file.bin"
         ext = file_name.rsplit(".", 1)[-1].lower() if "." in file_name else ""
         if ext in {"txt", "md", "markdown", "docx"}:
@@ -293,6 +293,7 @@ async def handle_message_event(
                 user_id=usso_uid,
                 locale=locale,
                 response_message_id=event.message_id,
+                user_prompt=text_value or None,
             )
             return
 
@@ -311,6 +312,7 @@ async def handle_message_event(
                 user_id=usso_uid,
                 locale=locale,
                 response_message_id=response_id,
+                user_prompt=text_value or None,
             )
         except Exception:
             logger.exception("File processing failed")
@@ -339,9 +341,15 @@ async def handle_message_event(
                 str(event.reply_to.message_id) if event.reply_to else None
             ),
         )
-        response = await context.chat_completion(
-            event, cleaned, locale=locale, renderer=ctx.renderer
-        )
+        try:
+            response = await context.chat_completion(
+                event, cleaned, locale=locale, renderer=ctx.renderer
+            )
+        except InsufficientCreditsError:
+            await context.notify_admin_insufficient_credits(
+                ctx.renderer, event.chat_id
+            )
+            response = text("messages.insufficient_credits", locale=locale)
         sent = await ctx.renderer.send_text(
             event.chat_id,
             response[: ctx.capabilities.max_text_chars or 4096],

@@ -98,7 +98,7 @@ def md_result_keyboard(
     content_type: str,
     media_url: str | None = None,
 ) -> InlineKeyboard:
-    """Build Promptic action buttons for OCR/transcribe results."""
+    """Build action buttons for OCR/transcribe results."""
     rows = [
         [
             InlineButton(button("summarize"), callback_data="action:summarize"),
@@ -112,6 +112,9 @@ def md_result_keyboard(
             InlineButton(button("minutes"), callback_data="action:minutes"),
             InlineButton(button("quiz"), callback_data="action:quiz"),
         ],
+        [
+            InlineButton(button("convert"), callback_data="convert:menu"),
+        ],
     ]
     if Settings.viewer_base_url:
         if media_url:
@@ -121,6 +124,19 @@ def md_result_keyboard(
             viewer_url = f"{Settings.viewer_base_url}?type={content_type}"
             rows.append([InlineButton(button("view_online"), url=viewer_url)])
     return InlineKeyboard(rows=rows)
+
+
+def convert_keyboard() -> InlineKeyboard:
+    """Build conversion sub-menu keyboard."""
+    return InlineKeyboard(
+        rows=[
+            [InlineButton("PDF", callback_data="convert:pdf")],
+            [InlineButton(button("word"), callback_data="convert:docx")],
+            [InlineButton(button("audio_read"), callback_data="convert:audio")],
+            [InlineButton(button("view_online"), callback_data="convert:viewer")],
+            [InlineButton(button("back"), callback_data="convert:back")],
+        ]
+    )
 
 
 def products_keyboard(

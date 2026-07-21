@@ -27,6 +27,9 @@ buttons:
   models: "🧠 Models"
   info: "ℹ️ Info"
   change_model: "Change Model"
+  convert: "🔄 Convert"
+  word: "📄 Word (DOCX)"
+  audio_read: "🔊 Audio Read"
   back: "🔙 Back"
 
 messages:
@@ -117,6 +120,7 @@ messages:
   onboarding_error: "There was a problem verifying your phone number. Please try again in a moment."
   contact_mismatch: "Please share your own phone number using the button."
   typed_phone_rejected: "Please share your phone number only via the Share Contact button."
+  convert_prompt: "Convert to:"
   task_error: "Processing failed. Please try again."
   task_timeout: "Processing took too long. Please try again."
 

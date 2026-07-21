@@ -17,6 +17,7 @@ async def handle_file_event(
     user_id: str,
     locale: str,
     response_message_id: int | str,
+    user_prompt: str | None = None,
 ) -> None:
     """Process an attached file (text ingest or async OCR/transcribe)."""
     if not event.file:
@@ -42,12 +43,25 @@ async def handle_file_event(
                 user_id=user_id,
                 content_type="document",
             )
-            await ctx.renderer.send_text(
-                event.chat_id,
-                text("messages.content_added_to_chat", locale=locale),
-                reply_to=event.message_id,
-                reply_keyboard=kb.main_menu_keyboard(),
-            )
+            if user_prompt:
+                response = await context.extracted_content_completion(
+                    content,
+                    user_prompt,
+                    sender_id=event.sender.id if event.sender else None,
+                    locale=locale,
+                )
+                await ctx.renderer.send_text(
+                    event.chat_id,
+                    response,
+                    reply_to=event.message_id,
+                )
+            else:
+                await ctx.renderer.send_text(
+                    event.chat_id,
+                    text("messages.content_added_to_chat", locale=locale),
+                    reply_to=event.message_id,
+                    reply_keyboard=kb.main_menu_keyboard(),
+                )
         return
 
     downloaded = await ctx.renderer.download_attached_file(event)
@@ -64,6 +78,7 @@ async def handle_file_event(
         content_type=event.content_type,
         user_id=user_id,
         locale=locale,
+        user_prompt=user_prompt,
     )
     if not task_uid:
         raise RuntimeError("AI Toolkit did not return a task identifier")
