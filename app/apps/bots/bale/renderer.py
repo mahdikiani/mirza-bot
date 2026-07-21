@@ -130,7 +130,8 @@ class BaleEventRenderer:
                 return None
             document = getattr(msg, "document", None) or getattr(msg, "audio", None)
             if not document:
-                return None
+                text = getattr(msg, "text", None) or getattr(msg, "caption", None)
+                return text.encode("utf-8") if text else None
             file_id = getattr(document, "file_id", None)
             if not file_id:
                 return None

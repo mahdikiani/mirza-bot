@@ -243,8 +243,10 @@ class TelethonEventRenderer:
         self, chat_id: int | str, message_id: int | str
     ) -> bytes | None:
         msg = await self.client.get_messages(chat_id, ids=message_id)
-        if not msg or not msg.media:
+        if not msg:
             return None
+        if not msg.media:
+            return msg.message.encode("utf-8") if msg.message else None
         data = await self.client.download_media(msg, bytes)
         return bytes(data) if data else None
 

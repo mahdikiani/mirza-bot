@@ -158,16 +158,77 @@ async def handle_callback_event(
         await ctx.renderer.answer_callback(event.callback_id, "🔜 به زودی")
         return
 
-    if data == "convert:docx":
-        await ctx.renderer.answer_callback(event.callback_id, "🔜 به زودی")
-        return
-
     if data == "convert:audio":
         await ctx.renderer.answer_callback(event.callback_id, "🔜 به زودی")
         return
 
-    if data == "convert:viewer":
-        await ctx.renderer.answer_callback(event.callback_id, "🔜 به زودی")
+    if data == "convert:docx":
+        await ctx.renderer.answer_callback(event.callback_id, "⏳")
+        content = await _get_content(event, ctx)
+        if not content:
+            await ctx.renderer.send_text(
+                event.chat_id, text("messages.no_content", locale=locale),
+                reply_to=event.message_id,
+            )
+            return
+        try:
+            from io import BytesIO
+            from docx import Document
+            from docx.oxml.ns import qn
+            from docx.oxml import OxmlElement
+            from docx.shared import Pt, RGBColor
+            from docx.enum.text import WD_ALIGN_PARAGRAPH
+            from utils.clients.media import MediaClient
+
+            doc = Document()
+            style = doc.styles["Normal"]
+            style.font.size = Pt(11)
+            rpr = style.element.get_or_add_rPr()
+            def _xml(t: str): e = OxmlElement(t); return e
+            rFonts = rpr.find(qn("w:rFonts"))
+            if rFonts is None:
+                rFonts = _xml("w:rFonts")
+                rpr.append(rFonts)
+            rFonts.set(qn("w:ascii"), "Calibri")
+            rFonts.set(qn("w:hAnsi"), "Calibri")
+            rFonts.set(qn("w:cs"), "B Nazanin")
+            pPr = style.element.get_or_add_pPr()
+            if pPr.find(qn("w:bidi")) is None:
+                pPr.append(_xml("w:bidi"))
+
+            for line in content.split("\n"):
+                strip = line.strip()
+                if not strip:
+                    continue
+                if strip.startswith("# "):
+                    p = doc.add_heading(strip[2:], level=1)
+                elif strip.startswith("## "):
+                    p = doc.add_heading(strip[3:], level=2)
+                elif strip.startswith("### "):
+                    p = doc.add_heading(strip[4:], level=3)
+                elif strip.startswith("!["):
+                    continue
+                else:
+                    p = doc.add_paragraph(strip)
+                p.alignment = WD_ALIGN_PARAGRAPH.RIGHT
+                pPr = p._element.get_or_add_pPr()
+                if pPr.find(qn("w:bidi")) is None:
+                    pPr.append(_xml("w:bidi"))
+
+            buf = BytesIO()
+            doc.save(buf)
+            buf.seek(0)
+            docx_url = await MediaClient.upload(buf.getvalue(), "document.docx")
+            await ctx.renderer.send_document(
+                event.chat_id,
+                file_data=buf.getvalue(),
+                file_name="document.docx",
+                caption="📄 فایل Word",
+                reply_to=event.message_id,
+            )
+        except Exception:
+            logger.exception("DOCX generation failed")
+            await ctx.renderer.answer_callback(event.callback_id, "❌ خطا")
         return
 
     if data.startswith("action:"):
@@ -178,16 +239,13 @@ async def handle_callback_event(
         action_name = data.split(":", 1)[1]
         prompt = actions.map_callback_action(action_name)
         if prompt and user_id:
-            target_lang = bot_user.preferred_language if bot_user else locale
-            content = ""
-            if event.message_id:
-                doc_bytes = await ctx.renderer.download_document(
-                    event.chat_id, event.message_id
-                )
-                if doc_bytes:
-                    content = doc_bytes.decode("utf-8", errors="replace")
-            if not content:
-                content = event.message_text or ""
+            preserve_lang = action_name in {"summarize", "structure", "format_notes", "cleanup", "minutes", "quiz", "ask_question"}
+            target_lang = (
+                (bot_user.preferred_language if bot_user else locale)
+                if action_name == "translate"
+                else "auto"
+            )
+            content = await _get_content(event, ctx)
             processing_msg = await ctx.renderer.send_text(
                 event.chat_id,
                 text("messages.processing", locale=target_lang),
@@ -210,3 +268,14 @@ async def handle_callback_event(
                 target_language=target_lang,
                 meta_data=meta,
             )
+
+
+async def _get_content(event: CallbackEvent, ctx: BotRuntimeContext) -> str:
+    """Get the text content from the message the callback was fired on."""
+    if event.message_id:
+        doc_bytes = await ctx.renderer.download_document(
+            event.chat_id, event.message_id
+        )
+        if doc_bytes:
+            return doc_bytes.decode("utf-8", errors="replace")
+    return event.message_text or ""

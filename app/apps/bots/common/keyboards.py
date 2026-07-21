@@ -116,27 +116,23 @@ def md_result_keyboard(
             InlineButton(button("convert"), callback_data="convert:menu"),
         ],
     ]
-    if Settings.viewer_base_url:
-        if media_url:
-            viewer_url = f"{Settings.viewer_base_url}?url={media_url}"
-            rows.append([InlineButton(button("view_online"), url=viewer_url)])
-        elif content_type in ("voice", "video", "audio"):
-            viewer_url = f"{Settings.viewer_base_url}?type={content_type}"
-            rows.append([InlineButton(button("view_online"), url=viewer_url)])
     return InlineKeyboard(rows=rows)
 
 
-def convert_keyboard() -> InlineKeyboard:
+def convert_keyboard(content_type: str = "", media_url: str | None = None) -> InlineKeyboard:
     """Build conversion sub-menu keyboard."""
-    return InlineKeyboard(
-        rows=[
-            [InlineButton("PDF", callback_data="convert:pdf")],
-            [InlineButton(button("word"), callback_data="convert:docx")],
-            [InlineButton(button("audio_read"), callback_data="convert:audio")],
-            [InlineButton(button("view_online"), callback_data="convert:viewer")],
-            [InlineButton(button("back"), callback_data="convert:back")],
-        ]
-    )
+    rows = [
+        [InlineButton(button("word"), callback_data="convert:docx")],
+    ]
+    if content_type in ("voice", "video", "audio"):
+        rows.append([InlineButton(button("audio_read"), callback_data="convert:audio")])
+    if Settings.viewer_base_url:
+        if media_url:
+            rows.append([InlineButton(button("view_online"), url=f"{Settings.viewer_base_url}?url={media_url}")])
+        elif content_type in ("voice", "video", "audio"):
+            rows.append([InlineButton(button("view_online"), url=f"{Settings.viewer_base_url}?type={content_type}")])
+    rows.append([InlineButton(button("back"), callback_data="convert:back")])
+    return InlineKeyboard(rows=rows)
 
 
 def products_keyboard(
