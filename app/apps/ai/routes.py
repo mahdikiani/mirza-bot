@@ -116,6 +116,11 @@ async def _deliver_result(payload: TaskWebhookPayload, content_type: str) -> Non
         reply_to=meta.get("reply_to_message_id"),
         include_actions=not user_prompt,
         processing_message_id=response_message_id,
+        docx_url=(
+            (payload.provider_meta or {}).get("docx_url")
+            if payload.provider_meta
+            else None
+        ),
     )
     await pending_tasks.remove(payload.uid)
 

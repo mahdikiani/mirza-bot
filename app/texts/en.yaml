@@ -29,6 +29,7 @@ buttons:
   change_model: "Change Model"
   convert: "🔄 Convert"
   word: "📄 Word (DOCX)"
+  markdown: "📝 Markdown"
   audio_read: "🔊 Audio Read"
   back: "🔙 Back"
 

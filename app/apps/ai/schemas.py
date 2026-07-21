@@ -16,3 +16,4 @@ class TaskWebhookPayload(BaseModel):
     usage_amount: float | None = None
     task_report: str | None = None
     error: str | None = None
+    provider_meta: dict | None = None

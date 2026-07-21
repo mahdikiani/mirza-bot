@@ -52,11 +52,13 @@ async def deliver_result(
     file_name_hint: str | None = None,
     include_actions: bool = True,
     processing_message_id: int | str | None = None,
+    docx_url: str | None = None,
 ) -> int | str | None:
     """Send AI result — always as reply to the original user message.
 
     - Result ≤ 4096 chars → send as text (chunked if needed)
     - Result > 4096 chars  → upload as .md file and send as document
+    - If docx_url is provided, send DOCX file along with the result
     - processing_message_id is deleted after successful delivery.
     """
     keyboard = kb.md_result_keyboard(content_type) if include_actions else None
@@ -85,6 +87,7 @@ async def deliver_result(
             chunk = remaining[:TEXT_CHUNK_LIMIT]
             await renderer.send_text(chat_id, chunk, reply_to=message_id)
             remaining = remaining[TEXT_CHUNK_LIMIT:]
+
         return sent_id
 
     base_name = _result_name(content_type, user_id, file_name_hint)
@@ -100,7 +103,7 @@ async def deliver_result(
         logger.exception("Failed to upload MD result")
 
     keyboard = (
-        kb.md_result_keyboard(content_type, media_url=media_url)
+        kb.md_result_keyboard(content_type, media_url=media_url, docx_url=docx_url)
         if include_actions
         else None
     )
@@ -133,6 +136,7 @@ async def deliver_md_result(
     reply_to: int | str | None = None,
     include_actions: bool = True,
     processing_message_id: int | str | None = None,
+    docx_url: str | None = None,
 ) -> int | str | None:
     """Legacy wrapper; delegates to deliver_result."""
     return await deliver_result(
@@ -146,6 +150,7 @@ async def deliver_md_result(
         file_name_hint=file_name_hint,
         include_actions=include_actions,
         processing_message_id=processing_message_id,
+        docx_url=docx_url,
     )
 
 

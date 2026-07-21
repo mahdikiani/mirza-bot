@@ -97,6 +97,7 @@ def settings_model_keyboard(current_model: str) -> InlineKeyboard:
 def md_result_keyboard(
     content_type: str,
     media_url: str | None = None,
+    docx_url: str | None = None,
 ) -> InlineKeyboard:
     """Build action buttons for OCR/transcribe results."""
     rows = [
@@ -116,6 +117,10 @@ def md_result_keyboard(
             InlineButton(button("convert"), callback_data="convert:menu"),
         ],
     ]
+    if docx_url:
+        rows.append([
+            InlineButton("📄 Word (DOCX)", url=docx_url),
+        ])
     return InlineKeyboard(rows=rows)
 
 
@@ -123,6 +128,7 @@ def convert_keyboard(content_type: str = "", media_url: str | None = None) -> In
     """Build conversion sub-menu keyboard."""
     rows = [
         [InlineButton(button("word"), callback_data="convert:docx")],
+        [InlineButton(button("markdown"), callback_data="convert:markdown")],
     ]
     if content_type in ("voice", "video", "audio"):
         rows.append([InlineButton(button("audio_read"), callback_data="convert:audio")])

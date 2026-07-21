@@ -163,72 +163,11 @@ async def handle_callback_event(
         return
 
     if data == "convert:docx":
-        await ctx.renderer.answer_callback(event.callback_id, "⏳")
-        content = await _get_content(event, ctx)
-        if not content:
-            await ctx.renderer.send_text(
-                event.chat_id, text("messages.no_content", locale=locale),
-                reply_to=event.message_id,
-            )
-            return
-        try:
-            from io import BytesIO
-            from docx import Document
-            from docx.oxml.ns import qn
-            from docx.oxml import OxmlElement
-            from docx.shared import Pt, RGBColor
-            from docx.enum.text import WD_ALIGN_PARAGRAPH
-            from utils.clients.media import MediaClient
+        await _handle_convert_docx(event, ctx, locale, user_id)
+        return
 
-            doc = Document()
-            style = doc.styles["Normal"]
-            style.font.size = Pt(11)
-            rpr = style.element.get_or_add_rPr()
-            def _xml(t: str): e = OxmlElement(t); return e
-            rFonts = rpr.find(qn("w:rFonts"))
-            if rFonts is None:
-                rFonts = _xml("w:rFonts")
-                rpr.append(rFonts)
-            rFonts.set(qn("w:ascii"), "Calibri")
-            rFonts.set(qn("w:hAnsi"), "Calibri")
-            rFonts.set(qn("w:cs"), "B Nazanin")
-            pPr = style.element.get_or_add_pPr()
-            if pPr.find(qn("w:bidi")) is None:
-                pPr.append(_xml("w:bidi"))
-
-            for line in content.split("\n"):
-                strip = line.strip()
-                if not strip:
-                    continue
-                if strip.startswith("# "):
-                    p = doc.add_heading(strip[2:], level=1)
-                elif strip.startswith("## "):
-                    p = doc.add_heading(strip[3:], level=2)
-                elif strip.startswith("### "):
-                    p = doc.add_heading(strip[4:], level=3)
-                elif strip.startswith("!["):
-                    continue
-                else:
-                    p = doc.add_paragraph(strip)
-                p.alignment = WD_ALIGN_PARAGRAPH.RIGHT
-                pPr = p._element.get_or_add_pPr()
-                if pPr.find(qn("w:bidi")) is None:
-                    pPr.append(_xml("w:bidi"))
-
-            buf = BytesIO()
-            doc.save(buf)
-            buf.seek(0)
-            docx_url = await MediaClient.upload(buf.getvalue(), "document.docx")
-            await ctx.renderer.send_document(
-                event.chat_id,
-                file_data=buf.getvalue(),
-                file_name="document.docx",
-                caption="📄 فایل Word",
-                reply_to=event.message_id,
-            )
-        except Exception:
-            logger.exception("DOCX generation failed")
-            await ctx.renderer.answer_callback(event.callback_id, "❌ خطا")
+    if data == "convert:markdown":
+        await _handle_convert_markdown(event, ctx, locale)
         return
 
     if data.startswith("action:"):
@@ -279,3 +218,110 @@ async def _get_content(event: CallbackEvent, ctx: BotRuntimeContext) -> str:
         if doc_bytes:
             return doc_bytes.decode("utf-8", errors="replace")
     return event.message_text or ""
+
+
+async def _handle_convert_docx(
+    event: CallbackEvent, ctx: BotRuntimeContext, locale: str, user_id: str | None
+) -> None:
+    """Convert a delivered result from MD to DOCX and send as file."""
+    await ctx.renderer.answer_callback(event.callback_id, "⏳")
+    content = await _get_content(event, ctx)
+    if not content:
+        await ctx.renderer.send_text(
+            event.chat_id, text("messages.no_content", locale=locale),
+            reply_to=event.message_id,
+        )
+        return
+    try:
+        from io import BytesIO
+        from docx import Document
+        from docx.oxml.ns import qn
+        from docx.oxml import OxmlElement
+        from docx.shared import Pt, RGBColor
+        from docx.enum.text import WD_ALIGN_PARAGRAPH
+        from utils.clients.media import MediaClient
+
+        doc = Document()
+        style = doc.styles["Normal"]
+        style.font.size = Pt(11)
+        rpr = style.element.get_or_add_rPr()
+        def _xml(t: str): e = OxmlElement(t); return e
+        rFonts = rpr.find(qn("w:rFonts"))
+        if rFonts is None:
+            rFonts = _xml("w:rFonts")
+            rpr.append(rFonts)
+        rFonts.set(qn("w:ascii"), "Calibri")
+        rFonts.set(qn("w:hAnsi"), "Calibri")
+        rFonts.set(qn("w:cs"), "B Nazanin")
+        pPr = style.element.get_or_add_pPr()
+        if pPr.find(qn("w:bidi")) is None:
+            pPr.append(_xml("w:bidi"))
+
+        for line in content.split("\n"):
+            strip = line.strip()
+            if not strip:
+                continue
+            if strip.startswith("# "):
+                p = doc.add_heading(strip[2:], level=1)
+            elif strip.startswith("## "):
+                p = doc.add_heading(strip[3:], level=2)
+            elif strip.startswith("### "):
+                p = doc.add_heading(strip[4:], level=3)
+            elif strip.startswith("!["):
+                continue
+            else:
+                p = doc.add_paragraph(strip)
+            p.alignment = WD_ALIGN_PARAGRAPH.RIGHT
+            pPr_elem = p._element.get_or_add_pPr()
+            if pPr_elem.find(qn("w:bidi")) is None:
+                pPr_elem.append(_xml("w:bidi"))
+
+        buf = BytesIO()
+        doc.save(buf)
+        buf.seek(0)
+        await MediaClient.upload(buf.getvalue(), "document.docx")
+        await ctx.renderer.send_document(
+            event.chat_id,
+            file_data=buf.getvalue(),
+            file_name="document.docx",
+            caption="📄 فایل Word",
+            reply_to=event.message_id,
+        )
+    except Exception:
+        logger.exception("DOCX generation failed")
+        await ctx.renderer.send_text(
+            event.chat_id, "❌ خطا در ساخت فایل Word",
+            reply_to=event.message_id,
+        )
+
+
+async def _handle_convert_markdown(
+    event: CallbackEvent, ctx: BotRuntimeContext, locale: str
+) -> None:
+    """Send the delivered result as a Markdown file."""
+    await ctx.renderer.answer_callback(event.callback_id, "⏳")
+    content = await _get_content(event, ctx)
+    if not content:
+        await ctx.renderer.send_text(
+            event.chat_id, text("messages.no_content", locale=locale),
+            reply_to=event.message_id,
+        )
+        return
+    try:
+        from utils.clients.media import MediaClient
+
+        md_bytes = content.encode("utf-8")
+        await MediaClient.upload(md_bytes, "document.md")
+        await ctx.renderer.send_document(
+            event.chat_id,
+            file_data=md_bytes,
+            file_name="document.md",
+            caption="📝 فایل Markdown",
+            reply_to=event.message_id,
+        )
+    except Exception:
+        logger.exception("MD upload failed")
+        await ctx.renderer.send_text(
+            event.chat_id, "❌ خطا در ارسال فایل",
+            reply_to=event.message_id,
+        )
