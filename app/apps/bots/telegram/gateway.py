@@ -175,28 +175,32 @@ class TelethonEventRenderer:
         self,
         chat_id: int | str,
         message_id: int | str,
-        text: str,
+        text: str | None = None,
         inline_keyboard: InlineKeyboard | None = None,
     ) -> None:
         buttons = _telethon_buttons(inline_keyboard)
         try:
+            kwargs: dict = {"buttons": buttons}
+            if text is not None:
+                kwargs["parse_mode"] = "html"
             await self.client.edit_message(
                 chat_id,
                 message_id,
                 text,
-                buttons=buttons,
-                parse_mode="html",
+                **kwargs,
             )
         except Exception as exc:
             if "parse" not in str(exc).lower() and "entities" not in str(exc).lower():
                 raise
             logger.warning("HTML edit failed; editing as plain text: %s", exc)
-            await self.client.edit_message(
-                chat_id,
-                message_id,
-                text,
-                buttons=buttons,
-            )
+            if text is not None:
+                kwargs.pop("parse_mode", None)
+                await self.client.edit_message(
+                    chat_id,
+                    message_id,
+                    text,
+                    buttons=buttons,
+                )
 
     async def send_typing(self, chat_id: int | str) -> None:
         from telethon import functions, types

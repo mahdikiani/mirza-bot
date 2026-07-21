@@ -138,17 +138,20 @@ async def handle_callback_event(
         return
 
     if data == "convert:menu":
-        await ctx.renderer.send_inline_text(
+        await ctx.renderer.edit_message(
             event.chat_id,
-            text("messages.convert_prompt", locale=locale),
-            kb.convert_keyboard(),
-            reply_to=event.message_id,
+            event.message_id,
+            text=None,
+            inline_keyboard=kb.convert_keyboard(),
         )
         return
 
     if data == "convert:back":
-        if event.message_id:
-            await ctx.renderer.delete_message(event.chat_id, event.message_id)
+        await ctx.renderer.edit_message(
+            event.chat_id,
+            event.message_id,
+            text=None,
+        )
         return
 
     if data == "convert:pdf":

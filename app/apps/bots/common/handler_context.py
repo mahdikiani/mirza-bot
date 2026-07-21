@@ -37,7 +37,7 @@ class EventRenderer(Protocol):
         self,
         chat_id: int | str,
         message_id: int | str,
-        text: str,
+        text: str | None = None,
         inline_keyboard: InlineKeyboard | None = None,
     ) -> None: ...
 

@@ -58,10 +58,13 @@ class BaleEventRenderer:
         self,
         chat_id: int | str,
         message_id: int | str,
-        text: str,
+        text: str | None = None,
         inline_keyboard: InlineKeyboard | None = None,
     ) -> None:
         try:
+            if text is None:
+                msg = await self.bot.get_message(chat_id, message_id)
+                text = getattr(msg, "text", None) or getattr(msg, "caption", "") or ""
             await self.bot.edit_message_text(
                 text,
                 chat_id,
