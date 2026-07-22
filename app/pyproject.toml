@@ -1,6 +1,6 @@
 [project]
 name = "mirza-bot"
-version = "0.1.15"
+version = "0.1.16"
 description = "Mirza Bot — multi-messenger AI bot gateway (Telegram/Bale) with OCR, transcription, chat, webpage extraction, and credit-based billing"
 readme = "README.md"
 requires-python = ">=3.13"
