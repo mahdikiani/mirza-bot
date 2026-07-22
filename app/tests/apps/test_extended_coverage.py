@@ -477,6 +477,31 @@ async def test_deliver_md_result_short_text() -> None:
 
 
 @pytest.mark.asyncio
+async def test_deliver_md_result_converts_markdown_for_inline_send() -> None:
+    """Regression: renderers use parse_mode="html"; AI results are Markdown.
+
+    Without conversion, users see literal "**" instead of bold text.
+    """
+    from apps.bots.common.delivery import deliver_md_result
+
+    renderer = AsyncMock()
+    await deliver_md_result(
+        renderer,
+        chat_id=1,
+        message_id=2,
+        result="**خلاصه:** این *مهم* است.",
+        content_type="promptic",
+        user_id="u1",
+        locale="fa",
+        include_actions=False,
+    )
+    sent_text = renderer.send_text.await_args.args[1]
+    assert "**" not in sent_text
+    assert "<b>خلاصه:</b>" in sent_text
+    assert "<i>مهم</i>" in sent_text
+
+
+@pytest.mark.asyncio
 async def test_deliver_md_result_long_text_uploads_file() -> None:
     from apps.bots.common import media_flow
     from apps.bots.common.delivery import deliver_md_result
@@ -497,6 +522,29 @@ async def test_deliver_md_result_long_text_uploads_file() -> None:
             locale="en",
         )
     renderer.send_document.assert_awaited_once()
+
+
+@pytest.mark.asyncio
+async def test_deliver_md_result_long_text_upload_keeps_raw_markdown() -> None:
+    """The uploaded .md file must stay real Markdown, not HTML-converted."""
+    from apps.bots.common import media_flow
+    from apps.bots.common.delivery import deliver_md_result
+
+    renderer = AsyncMock()
+    long_text = "**bold**\n" + "x" * media_flow.MD_FILE_THRESHOLD_CHARS
+    upload_mock = AsyncMock(return_value="https://media.test/r.md")
+    with patch("apps.bots.common.delivery.MediaClient.upload", upload_mock):
+        await deliver_md_result(
+            renderer,
+            chat_id=1,
+            message_id=2,
+            result=long_text,
+            content_type="document",
+            user_id="u1",
+            locale="fa",
+        )
+    uploaded_bytes = upload_mock.await_args.args[0]
+    assert uploaded_bytes == long_text.encode("utf-8")
 
 
 def test_is_insufficient_credit_error() -> None:

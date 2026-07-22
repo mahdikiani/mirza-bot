@@ -7,6 +7,7 @@ import logging
 from apps.bots.common import keyboards as kb
 from utils.clients.media import MediaClient
 from utils.i18n import text
+from utils.markdown_html import markdown_to_telegram_html
 
 logger = logging.getLogger(__name__)
 
@@ -64,17 +65,22 @@ async def deliver_result(
     keyboard = kb.md_result_keyboard(content_type) if include_actions else None
 
     if len(result) <= FILE_THRESHOLD:
+        # Renderers send with HTML parse mode; AI results come back as
+        # Markdown, so convert here (only for the inline-text path — the
+        # .md file uploaded below must stay as real, unconverted Markdown).
+        html_result = markdown_to_telegram_html(result)
+
         if keyboard:
             sent = await renderer.send_inline_text(
                 chat_id,
-                result[:TEXT_CHUNK_LIMIT],
+                html_result[:TEXT_CHUNK_LIMIT],
                 keyboard,
                 reply_to=message_id,
             )
         else:
             sent = await renderer.send_text(
                 chat_id,
-                result[:TEXT_CHUNK_LIMIT],
+                html_result[:TEXT_CHUNK_LIMIT],
                 reply_to=message_id,
                 reply_keyboard=None,
             )
@@ -82,7 +88,7 @@ async def deliver_result(
 
         await _try_delete(renderer, chat_id, processing_message_id)
 
-        remaining = result[TEXT_CHUNK_LIMIT:]
+        remaining = html_result[TEXT_CHUNK_LIMIT:]
         while remaining:
             chunk = remaining[:TEXT_CHUNK_LIMIT]
             await renderer.send_text(chat_id, chunk, reply_to=message_id)
