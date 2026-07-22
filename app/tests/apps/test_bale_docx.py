@@ -154,8 +154,6 @@ def test_bot_return_url_bale() -> None:
 async def test_bale_renderer_edit_and_download() -> None:
     bot = AsyncMock()
     bot.edit_message_text = AsyncMock()
-    bot.get_file = AsyncMock(return_value=MagicMock(file_path="path/doc"))
-    bot.download_file = AsyncMock(return_value=b"bytes")
     renderer = BaleEventRenderer(bot)
 
     from apps.bots.common.events import FileRef, MessageEvent
@@ -167,7 +165,10 @@ async def test_bale_renderer_edit_and_download() -> None:
         platform="bale",
         file=FileRef(file_id="f1", file_name="a.docx"),
     )
-    result = await renderer.download_attached_file(event)
+    with patch.object(
+        renderer, "_download_bale_file", AsyncMock(return_value=b"bytes")
+    ):
+        result = await renderer.download_attached_file(event)
     assert result == (b"bytes", "a.docx")
 
 

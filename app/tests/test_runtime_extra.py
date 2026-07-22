@@ -149,8 +149,6 @@ async def test_bale_renderer_send_inline_and_contact() -> None:
 @pytest.mark.asyncio
 async def test_bale_renderer_download_file() -> None:
     bot = AsyncMock()
-    bot.get_file = AsyncMock(return_value=MagicMock(file_path="path"))
-    bot.download_file = AsyncMock(return_value=b"data")
     renderer = BaleEventRenderer(bot)
     event = MessageEvent(
         platform="bale",
@@ -160,8 +158,58 @@ async def test_bale_renderer_download_file() -> None:
         file=FileRef(file_id="fid", file_name="a.bin"),
         sender=Sender(id="1"),
     )
-    result = await renderer.download_attached_file(event)
+    with patch.object(
+        renderer, "_download_bale_file", AsyncMock(return_value=b"data")
+    ):
+        result = await renderer.download_attached_file(event)
     assert result == (b"data", "a.bin")
+
+
+@pytest.mark.asyncio
+async def test_bale_download_bale_file_uses_direct_url_and_timeout() -> None:
+    """
+    Downloads must bypass telebot's fixed 300s aiohttp session timeout by
+    hitting Bale's file server directly with a longer, explicit timeout."""
+    bot = MagicMock()
+    bot.token = "tok123"
+    renderer = BaleEventRenderer(bot)
+
+    mock_resp = MagicMock()
+    mock_resp.content = b"filebytes"
+    mock_resp.raise_for_status = MagicMock()
+    mock_client = AsyncMock()
+    mock_client.get = AsyncMock(return_value=mock_resp)
+    mock_client.__aenter__ = AsyncMock(return_value=mock_client)
+    mock_client.__aexit__ = AsyncMock(return_value=False)
+
+    with patch(
+        "apps.bots.bale.renderer.httpx.AsyncClient", return_value=mock_client
+    ) as client_cls:
+        result = await renderer._download_bale_file("fid123")
+
+    assert result == b"filebytes"
+    client_cls.assert_called_once()
+    _, kwargs = client_cls.call_args
+    assert kwargs["timeout"] == pytest.approx(240.0)
+    mock_client.get.assert_awaited_once_with("https://tapi.bale.ai/file/bottok123/fid123")
+
+
+def test_media_dict_preserves_file_name_and_mime_type_for_documents() -> None:
+    """
+    Regression test: Bale sends audio files attached as a generic
+    "document" (not a voice note), and normalize_bale_message needs
+    file_name/mime_type to detect audio/* and route to transcription
+    instead of OCR. These were previously dropped for all non-video types."""
+    media = MagicMock()
+    media.file_id = "fid"
+    media.file_size = 123
+    media.file_name = "song.mp3"
+    media.mime_type = "audio/mpeg"
+
+    entry = poller._media_dict(media, "document")
+
+    assert entry["file_name"] == "song.mp3"
+    assert entry["mime_type"] == "audio/mpeg"
 
 
 @pytest.mark.asyncio

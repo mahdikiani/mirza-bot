@@ -4,12 +4,23 @@ from __future__ import annotations
 
 import logging
 
+import httpx
+
 from apps.bots.bale.bot import BaleBot
 from apps.bots.bale.markup import to_inline_markup, to_reply_markup
 from apps.bots.common.events import MessageEvent
 from apps.bots.common.keyboards import InlineKeyboard, ReplyKeyboard
 
 logger = logging.getLogger(__name__)
+
+# telebot's own download_file() uses an aiohttp session with the library
+# default of ClientTimeout(total=300), which is too short for Bale's file
+# server on larger (multi-MB) attachments — observed a real 8.5MB audio
+# file both time out at exactly 300s through telebot and complete in ~53s
+# via a plain longer-timeout request. Downloading directly here (Bale's
+# getFile is a no-op that just echoes file_id back as file_path, so no
+# separate resolution call is needed) works around that fixed timeout.
+BALE_FILE_DOWNLOAD_TIMEOUT = 240.0
 
 
 class BaleEventRenderer:
@@ -104,17 +115,27 @@ class BaleEventRenderer:
             reply_keyboard=contact_request_keyboard(),
         )
 
+    async def _download_bale_file(self, file_id: str) -> bytes | None:
+        """
+        Download a file by ID directly against Bale's file server,
+        bypassing telebot's fixed 300s aiohttp timeout (see module docstring
+        comment above BALE_FILE_DOWNLOAD_TIMEOUT)."""
+        url = f"https://tapi.bale.ai/file/bot{self.bot.token}/{file_id}"
+        async with httpx.AsyncClient(timeout=BALE_FILE_DOWNLOAD_TIMEOUT) as client:
+            resp = await client.get(url)
+            resp.raise_for_status()
+            return resp.content
+
     async def download_attached_file(
         self, event: MessageEvent
     ) -> tuple[bytes, str] | None:
         if not event.file or not event.file.file_id:
             return None
-        file_info = await self.bot.get_file(event.file.file_id)
-        data = await self.bot.download_file(file_info.file_path)
+        data = await self._download_bale_file(event.file.file_id)
         if data is None:
             return None
         name = event.file.file_name or "file.bin"
-        return bytes(data), name
+        return data, name
 
     async def delete_message(
         self, chat_id: int | str, message_id: int | str
@@ -138,9 +159,7 @@ class BaleEventRenderer:
             file_id = getattr(document, "file_id", None)
             if not file_id:
                 return None
-            file_info = await self.bot.get_file(file_id)
-            data = await self.bot.download_file(file_info.file_path)
-            return bytes(data) if data else None
+            return await self._download_bale_file(file_id)
         except Exception:
             logger.exception(
                 "Failed to download document from chat_id=%s msg_id=%s",

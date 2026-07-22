@@ -95,6 +95,16 @@ def _media_dict(media: object, ftype: str) -> dict:
         "file_id": getattr(media, "file_id", ""),
         "file_size": getattr(media, "file_size", 0),
     }
+    # file_name/mime_type matter beyond documents: Bale sends audio files
+    # sent as a generic attachment (not a voice note) through the same
+    # "document" field, and normalize_bale_message relies on these to
+    # detect audio/* content and route to transcription instead of OCR.
+    file_name = getattr(media, "file_name", None)
+    if file_name:
+        entry["file_name"] = file_name
+    mime_type = getattr(media, "mime_type", None)
+    if mime_type:
+        entry["mime_type"] = mime_type
     if ftype in ("voice", "audio", "video") and hasattr(media, "duration"):
         entry["duration"] = getattr(media, "duration", 0)
     if ftype == "video" and hasattr(media, "width"):
