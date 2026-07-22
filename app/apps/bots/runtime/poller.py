@@ -17,7 +17,7 @@ def _supports_polling(bot: object) -> bool:
 
 async def _fetch_updates(bot: object) -> list | None:
     try:
-        offset: int | None = bot.last_update_id + 1 if bot.last_update_id is not None else -1
+        offset: int | None = bot.last_update_id + 1 if bot.last_update_id is not None else 0
         return await bot.get_updates(
             offset=offset,
             timeout=10,
