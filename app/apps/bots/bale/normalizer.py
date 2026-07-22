@@ -37,14 +37,22 @@ def _sender(payload: dict[str, Any]) -> Sender | None:
 
 def _file_from_message(payload: dict[str, Any]) -> tuple[FileRef | None, str]:
     if document := payload.get("document"):
+        mime = (document.get("mime_type") or "").lower()
+        fname = document.get("file_name") or ""
+        if mime.startswith("audio/") or fname.lower().endswith((".mp3", ".ogg", ".wav", ".m4a", ".flac")):
+            ct = "audio"
+        elif mime.startswith("video/"):
+            ct = "video"
+        else:
+            ct = "document"
         return (
             FileRef(
                 file_id=str(document.get("file_id", "")),
-                file_name=document.get("file_name") or "document.bin",
-                mime_type=document.get("mime_type") or "",
+                file_name=fname or "document.bin",
+                mime_type=mime,
                 size=int(document.get("file_size") or 0),
             ),
-            "document",
+            ct,
         )
     if voice := payload.get("voice"):
         return (
