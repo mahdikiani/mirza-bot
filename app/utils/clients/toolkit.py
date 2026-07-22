@@ -34,3 +34,17 @@ def completed_result_or_raise(data: dict, task_uid: str, task_type: str) -> str:
         msg = f"{task_type} task {task_uid} not completed: {status}"
         raise ToolkitTaskNotCompletedError(msg)
     return data.get("result") or ""
+
+
+async def convert_markdown_to_docx(markdown: str, title: str = "") -> bytes:
+    """
+    Convert Markdown to a real, RTL-correct .docx via the AI Toolkit's
+    document-convert API — the same renderer the OCR pipeline uses (real
+    tables, OMML formulas, per-run bold/italic, correct w:lang bidi)."""
+    async with toolkit_client(request_timeout=30.0) as client:
+        resp = await client.post(
+            "/document-convert/markdown-to-docx",
+            json={"markdown": markdown, "title": title},
+        )
+        resp.raise_for_status()
+        return resp.content

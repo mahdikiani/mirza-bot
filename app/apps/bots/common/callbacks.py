@@ -2,11 +2,7 @@
 
 from __future__ import annotations
 
-import asyncio
 import logging
-import os
-import subprocess
-import tempfile
 
 from apps.ai import result_content_cache
 from apps.bots.common import actions, billing, settings
@@ -215,7 +211,8 @@ async def handle_callback_event(
 
 
 async def _get_content(event: CallbackEvent, ctx: BotRuntimeContext) -> str:
-    """Get the raw Markdown content the callback's message was delivered with.
+    """
+    Get the raw Markdown content the callback's message was delivered with.
 
     Prefers the cache saved at delivery time (see result_content_cache):
     once a result is sent as real rich text (bold/italic entities), the
@@ -242,7 +239,7 @@ async def _get_content(event: CallbackEvent, ctx: BotRuntimeContext) -> str:
 async def _handle_convert_docx(
     event: CallbackEvent, ctx: BotRuntimeContext, locale: str, user_id: str | None
 ) -> None:
-    """Convert Markdown to DOCX using pandoc with proper RTL/font styles."""
+    """Convert Markdown to DOCX via the AI Toolkit's document-convert API."""
     await ctx.renderer.answer_callback(event.callback_id, "⏳")
     content = await _get_content(event, ctx)
     if not content:
@@ -254,31 +251,9 @@ async def _handle_convert_docx(
 
     try:
         from utils.clients.media import MediaClient
+        from utils.clients.toolkit import convert_markdown_to_docx
 
-        ref_path = await _get_reference_docx()
-
-        md_bytes = content.encode("utf-8")
-
-        proc = await asyncio.create_subprocess_exec(
-            "pandoc",
-            "--from", "markdown+pipe_tables+tex_math_dollars+hard_line_breaks",
-            "--to", "docx",
-            f"--reference-doc={ref_path}",
-            "--wrap=preserve",
-            "-o", "/tmp/_convert_output.docx",
-            stdin=subprocess.PIPE,
-            stdout=subprocess.PIPE,
-            stderr=subprocess.PIPE,
-        )
-        stdout, stderr = await proc.communicate(input=md_bytes)
-
-        if proc.returncode != 0:
-            raise RuntimeError(f"pandoc failed: {stderr.decode(errors='replace')}")
-
-        with open("/tmp/_convert_output.docx", "rb") as f:
-            docx_bytes = f.read()
-
-        os.unlink("/tmp/_convert_output.docx")
+        docx_bytes = await convert_markdown_to_docx(content)
 
         await MediaClient.upload(docx_bytes, "document.docx")
         await ctx.renderer.send_document(
@@ -291,68 +266,6 @@ async def _handle_convert_docx(
     except Exception:
         logger.exception("DOCX generation failed")
         await ctx.renderer.answer_callback(event.callback_id, "❌ خطا")
-
-
-_REFERENCE_DOCX_CACHE: str | None = None
-
-
-async def _get_reference_docx() -> str:
-    """Create and cache a reference DOCX with proper RTL Persian/English styles."""
-    global _REFERENCE_DOCX_CACHE
-    if _REFERENCE_DOCX_CACHE and os.path.exists(_REFERENCE_DOCX_CACHE):
-        return _REFERENCE_DOCX_CACHE
-
-    from docx import Document
-    from docx.enum.text import WD_ALIGN_PARAGRAPH
-    from docx.oxml import OxmlElement
-    from docx.oxml.ns import qn
-    from docx.shared import Pt, RGBColor
-
-    doc = Document()
-
-    style = doc.styles["Normal"]
-    style.font.size = Pt(11)
-    pf = style.paragraph_format
-    pf.alignment = WD_ALIGN_PARAGRAPH.RIGHT
-    pf.space_after = Pt(6)
-
-    def _rFonts(rpr, *, cs="B Nazanin", latin="Calibri"):
-        rf = rpr.find(qn("w:rFonts"))
-        if rf is None:
-            rf = OxmlElement("w:rFonts")
-            rpr.append(rf)
-        rf.set(qn("w:ascii"), latin)
-        rf.set(qn("w:hAnsi"), latin)
-        rf.set(qn("w:cs"), cs)
-        rf.set(qn("w:eastAsia"), latin)
-
-    rpr = style.element.get_or_add_rPr()
-    _rFonts(rpr)
-
-    pPr = style.element.get_or_add_pPr()
-    if pPr.find(qn("w:bidi")) is None:
-        pPr.append(OxmlElement("w:bidi"))
-    sz = rpr.find(qn("w:sz"))
-    if sz is None:
-        rpr.append(OxmlElement("w:sz"))
-        rpr.find(qn("w:sz")).set(qn("w:val"), "22")
-
-    for level in range(1, 4):
-        hs = doc.styles[f"Heading {level}"]
-        hs.font.bold = True
-        hpr = hs.element.get_or_add_rPr()
-        _rFonts(hpr)
-        if hpr.find(qn("w:bidi")) is None:
-            hpr.append(OxmlElement("w:bidi"))
-        hpf = hs.paragraph_format
-        hpf.space_before = Pt(12)
-        hpf.space_after = Pt(6)
-        hpf.alignment = WD_ALIGN_PARAGRAPH.RIGHT
-
-    path = "/tmp/_ref_docx.docx"
-    doc.save(path)
-    _REFERENCE_DOCX_CACHE = path
-    return path
 
 
 async def _handle_convert_markdown(
