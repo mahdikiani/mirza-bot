@@ -237,7 +237,9 @@ class CompletionClient:
             body["model"] = model
 
         async with toolkit_client(request_timeout=120.0) as c:
-            resp = await c.post("/chat/completions", json=body)
+            # ai-toolkit mounts its OpenAI-compatible router under /openai/v1
+            # (apps/openai_compat/routes.py), not at the bare toolkit base URL.
+            resp = await c.post("/openai/v1/chat/completions", json=body)
             if resp.status_code == 402:
                 raise InsufficientCreditsError()
             resp.raise_for_status()

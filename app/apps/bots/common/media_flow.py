@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import asyncio
 import logging
+import re
 from datetime import UTC, datetime
 
 import httpx
@@ -26,10 +27,26 @@ _CONTENT_EXT: dict[str, str] = {
     "animation": "gif",
 }
 
+# Anything outside this set (spaces, quotes, parens, non-ASCII, ...) breaks
+# strict URL validators downstream (e.g. Soniox's audio_url pattern) once the
+# media service embeds the raw filename in a public URL path segment.
+_UNSAFE_FILENAME_CHARS_RE = re.compile(r"[^A-Za-z0-9._-]+")
+
 
 def _safe_filename(content_type: str, original_name: str) -> str:
     if original_name:
-        return original_name
+        stem, dot, ext = original_name.rpartition(".")
+        if dot:
+            safe_ext = _UNSAFE_FILENAME_CHARS_RE.sub("", ext) or _CONTENT_EXT.get(
+                content_type, "bin"
+            )
+            safe_stem = _UNSAFE_FILENAME_CHARS_RE.sub("_", stem).strip("_-")
+            if safe_stem:
+                return f"{safe_stem}.{safe_ext}"
+        else:
+            safe_stem = _UNSAFE_FILENAME_CHARS_RE.sub("_", original_name).strip("_-")
+            if safe_stem:
+                return safe_stem
     ext = _CONTENT_EXT.get(content_type, "bin")
     ts = datetime.now(UTC).strftime("%Y%m%d_%H%M%S")
     return f"{content_type}_{ts}.{ext}"

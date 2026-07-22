@@ -153,3 +153,8 @@ async def test_completion_complete() -> None:
         )
 
     assert result == "hello"
+    # Regression: ai-toolkit mounts this route under /openai/v1, not at the
+    # bare toolkit base URL — calling "/chat/completions" 404s.
+    client.post.assert_awaited_once()
+    called_path = client.post.await_args.args[0]
+    assert called_path == "/openai/v1/chat/completions"

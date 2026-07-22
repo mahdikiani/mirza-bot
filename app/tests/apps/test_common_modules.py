@@ -235,6 +235,42 @@ class TestBilling:
         assert url.startswith("https://pay")
 
 
+class TestSafeFilename:
+    """_safe_filename must strip characters that break strict URL validators
+    (e.g. Soniox's audio_url pattern) once the media service embeds the raw
+    filename in a public URL path segment."""
+
+    def test_strips_spaces_and_keeps_extension(self) -> None:
+        name = media_flow._safe_filename(
+            "audio", "War report66 mohammadi 304405 part2.mp3"
+        )
+        assert " " not in name
+        assert name.endswith(".mp3")
+        assert name == "War_report66_mohammadi_304405_part2.mp3"
+
+    def test_strips_parens_quotes_and_other_unsafe_chars(self) -> None:
+        name = media_flow._safe_filename("document", 'weird (name) "quoted".pdf')
+        assert name == "weird_name_quoted.pdf"
+
+    def test_generates_fallback_name_when_stem_is_entirely_unsafe(self) -> None:
+        name = media_flow._safe_filename("photo", "____.jpg")
+        assert name.startswith("photo_")
+        assert name.endswith(".jpg")
+
+    def test_no_extension_still_sanitized(self) -> None:
+        name = media_flow._safe_filename("document", "no extension here")
+        assert name == "no_extension_here"
+
+    def test_empty_name_falls_back_to_generated_name(self) -> None:
+        name = media_flow._safe_filename("voice", "")
+        assert name.startswith("voice_")
+        assert name.endswith(".ogg")
+
+    def test_safe_ascii_name_is_left_untouched(self) -> None:
+        name = media_flow._safe_filename("document", "report_final-v2.docx")
+        assert name == "report_final-v2.docx"
+
+
 class TestMediaFlow:
     def test_toolkit_task_meta(self) -> None:
         event = MessageEvent(
