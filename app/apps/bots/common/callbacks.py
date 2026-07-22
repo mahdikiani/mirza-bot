@@ -304,7 +304,8 @@ async def _get_reference_docx() -> str:
 
     from docx import Document
     from docx.enum.text import WD_ALIGN_PARAGRAPH
-    from docx.oxml import OxmlElement, qn
+    from docx.oxml import OxmlElement
+    from docx.oxml.ns import qn
     from docx.shared import Pt, RGBColor
 
     doc = Document()
