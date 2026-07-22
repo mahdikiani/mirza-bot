@@ -56,7 +56,8 @@ async def deliver_result(
     processing_message_id: int | str | None = None,
     docx_url: str | None = None,
 ) -> int | str | None:
-    """Send AI result — always as reply to the original user message.
+    """
+    Send AI result — always as reply to the original user message.
 
     - Result ≤ 4096 chars → send as text (chunked if needed)
     - Result > 4096 chars  → upload as .md file and send as document
@@ -133,6 +134,80 @@ async def deliver_result(
     except Exception:
         logger.exception("Failed to send result document")
         return None
+
+
+async def deliver_docx_first_result(
+    renderer: object,
+    *,
+    chat_id: int | str,
+    message_id: int | str,
+    result: str,
+    content_type: str,
+    user_id: str | None = None,
+    locale: str = "fa",
+    file_name_hint: str | None = None,
+    include_actions: bool = True,
+    processing_message_id: int | str | None = None,
+    docx_title: str = "",
+) -> int | str | None:
+    """
+    Deliver a result as a .docx file by default instead of Markdown text.
+
+    Used for the "minutes" action: unlike every other action (which returns
+    Markdown, with a convert-to-Word button as an extra step), minutes
+    should hand back a ready-to-use Word document directly, with convert
+    still available to get the Markdown/other formats instead. Falls back
+    to the normal Markdown delivery if DOCX conversion fails, so a toolkit
+    hiccup never means the user gets nothing.
+    """
+    from utils.clients.toolkit import convert_markdown_to_docx
+
+    try:
+        docx_bytes = await convert_markdown_to_docx(result, title=docx_title)
+    except Exception:
+        logger.exception("Minutes DOCX conversion failed, falling back to Markdown")
+        return await deliver_result(
+            renderer,
+            chat_id=chat_id,
+            message_id=message_id,
+            result=result,
+            content_type=content_type,
+            user_id=user_id,
+            locale=locale,
+            file_name_hint=file_name_hint,
+            include_actions=include_actions,
+            processing_message_id=processing_message_id,
+        )
+
+    base_name = _result_name(content_type, user_id, file_name_hint)
+    file_name = f"{base_name}.docx" if not base_name.lower().endswith(".docx") else base_name
+    keyboard = kb.md_result_keyboard(content_type) if include_actions else None
+
+    try:
+        sent = await renderer.send_document(
+            chat_id=chat_id,
+            file_data=docx_bytes,
+            file_name=file_name,
+            caption=text("messages.result_document_caption", locale=locale),
+            inline_keyboard=keyboard,
+            reply_to=message_id,
+        )
+    except Exception:
+        logger.exception("Failed to send minutes DOCX")
+        return None
+
+    await _try_delete(renderer, chat_id, processing_message_id)
+
+    sent_id = getattr(sent, "id", None) or getattr(sent, "message_id", None)
+    if sent_id is not None:
+        try:
+            # Cache the raw Markdown (not the DOCX) so convert:docx/markdown
+            # buttons on this message keep working exactly as on every other
+            # result.
+            await result_content_cache.save(sent_id, result)
+        except Exception:
+            logger.debug("Failed to cache result content for message %s", sent_id)
+    return sent_id
 
 
 async def deliver_md_result(

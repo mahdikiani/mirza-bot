@@ -8,7 +8,11 @@ from fastapi import APIRouter, BackgroundTasks, Depends
 
 from apps.ai.schemas import TaskWebhookPayload
 from apps.bots.common import keyboards as kb
-from apps.bots.common.delivery import deliver_md_result, is_insufficient_credit_error
+from apps.bots.common.delivery import (
+    deliver_docx_first_result,
+    deliver_md_result,
+    is_insufficient_credit_error,
+)
 from apps.bots.common.renderer_registry import get_renderer
 from utils.i18n import text
 from utils.webhook_auth import require_webhook_api_key
@@ -103,6 +107,23 @@ async def _deliver_result(payload: TaskWebhookPayload, content_type: str) -> Non
         except InsufficientCreditsError:
             await notify_admin_insufficient_credits(renderer, chat_id)
             result = text("messages.insufficient_credits", locale=str(locale))
+
+    if content_type == "promptic" and meta.get("action_name") == "minutes":
+        await deliver_docx_first_result(
+            renderer,
+            chat_id=chat_id,
+            message_id=meta.get("reply_to_message_id") or response_message_id,
+            result=result,
+            content_type=content_type,
+            user_id=str(user_id) if user_id else None,
+            locale=str(locale),
+            file_name_hint=meta.get("file_name_hint"),
+            include_actions=not user_prompt,
+            processing_message_id=response_message_id,
+            docx_title=text("buttons.minutes", locale=str(locale)),
+        )
+        await pending_tasks.remove(payload.uid)
+        return
 
     await deliver_md_result(
         renderer,

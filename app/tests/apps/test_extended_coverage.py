@@ -440,6 +440,43 @@ async def test_deliver_result_uses_renderer_registry() -> None:
 
 
 @pytest.mark.asyncio
+async def test_deliver_result_routes_minutes_action_to_docx_first() -> None:
+    """
+    The minutes action must go through deliver_docx_first_result, not
+    the normal Markdown deliver_md_result path every other action uses."""
+    from apps.ai.routes import TaskWebhookPayload, _deliver_result
+    from apps.bots.common.renderer_registry import register_renderer
+
+    renderer = AsyncMock()
+    register_renderer("bot-minutes", renderer)
+    payload = TaskWebhookPayload(
+        uid="ok-minutes",
+        task_status="completed",
+        result="# صورت جلسه\nمتن",
+        meta_data={
+            "chat_id": 1,
+            "bot_name": "bot-minutes",
+            "message_id": 2,
+            "user_id": "u1",
+            "locale": "fa",
+            "reply_to_message_id": 1,
+            "action_name": "minutes",
+        },
+    )
+    with (
+        patch("apps.ai.pending_tasks.remove", AsyncMock()),
+        patch(
+            "apps.ai.routes.deliver_docx_first_result", AsyncMock()
+        ) as docx_first,
+        patch("apps.ai.routes.deliver_md_result", AsyncMock()) as md_result,
+    ):
+        await _deliver_result(payload, "promptic")
+
+    docx_first.assert_awaited_once()
+    md_result.assert_not_awaited()
+
+
+@pytest.mark.asyncio
 async def test_notify_task_error_insufficient_credits_renderer() -> None:
     from apps.ai.routes import TaskWebhookPayload, _notify_task_error
     from apps.bots.common.renderer_registry import register_renderer
@@ -458,7 +495,6 @@ async def test_notify_task_error_insufficient_credits_renderer() -> None:
 
 
 @pytest.mark.asyncio
-
 async def test_deliver_md_result_short_text() -> None:
     from apps.bots.common.delivery import deliver_md_result
 
@@ -478,7 +514,8 @@ async def test_deliver_md_result_short_text() -> None:
 
 @pytest.mark.asyncio
 async def test_deliver_md_result_converts_markdown_for_inline_send() -> None:
-    """Regression: renderers use parse_mode="html"; AI results are Markdown.
+    """
+    Regression: renderers use parse_mode="html"; AI results are Markdown.
 
     Without conversion, users see literal "**" instead of bold text.
     """
@@ -526,7 +563,8 @@ async def test_deliver_md_result_long_text_uploads_file() -> None:
 
 @pytest.mark.asyncio
 async def test_deliver_md_result_caches_raw_markdown_for_convert_buttons() -> None:
-    """Regression: convert-to-Word/Markdown buttons read this cache back
+    """
+    Regression: convert-to-Word/Markdown buttons read this cache back
     (see apps/ai/result_content_cache.py + callbacks._get_content) since
     Telegram strips '#'/'**' syntax once a message is sent as rich text."""
     from apps.bots.common.delivery import deliver_md_result
@@ -693,8 +731,7 @@ async def test_handler_inline_query() -> None:
 
 @pytest.mark.asyncio
 async def test_deliver_md_result_sends_as_file_when_long() -> None:
-    from apps.bots.common.delivery import deliver_md_result
-    from apps.bots.common.delivery import FILE_THRESHOLD
+    from apps.bots.common.delivery import FILE_THRESHOLD, deliver_md_result
 
     renderer = AsyncMock()
     long_text = "a" * (FILE_THRESHOLD + 1)
@@ -789,8 +826,7 @@ async def test_handler_docx_file_added_to_chat() -> None:
 
 @pytest.mark.asyncio
 async def test_deliver_md_result_upload_failure_still_sends() -> None:
-    from apps.bots.common.delivery import FILE_THRESHOLD
-    from apps.bots.common.delivery import deliver_md_result
+    from apps.bots.common.delivery import FILE_THRESHOLD, deliver_md_result
 
     renderer = AsyncMock()
     long_text = "x" * (FILE_THRESHOLD + 1)
@@ -808,6 +844,76 @@ async def test_deliver_md_result_upload_failure_still_sends() -> None:
             locale="fa",
         )
     renderer.send_document.assert_awaited_once()
+
+
+@pytest.mark.asyncio
+async def test_deliver_docx_first_result_sends_docx_and_caches_markdown() -> None:
+    """
+    Minutes must deliver a ready .docx directly (not Markdown text), but
+    still cache the raw Markdown so convert:docx/markdown buttons work."""
+    from apps.bots.common.delivery import deliver_docx_first_result
+
+    renderer = AsyncMock()
+    renderer.send_document.return_value = MagicMock(id=555)
+
+    with (
+        patch(
+            "utils.clients.toolkit.convert_markdown_to_docx",
+            AsyncMock(return_value=b"docxbytes"),
+        ) as convert_mock,
+        patch(
+            "apps.bots.common.delivery.result_content_cache.save", AsyncMock()
+        ) as save_mock,
+    ):
+        sent_id = await deliver_docx_first_result(
+            renderer,
+            chat_id=1,
+            message_id=2,
+            result="# صورت جلسه\n**تصمیم**",
+            content_type="promptic",
+            user_id="u1",
+            locale="fa",
+            docx_title="صورت جلسه",
+        )
+
+    convert_mock.assert_awaited_once_with(
+        "# صورت جلسه\n**تصمیم**", title="صورت جلسه"
+    )
+    renderer.send_document.assert_awaited_once()
+    _, kwargs = renderer.send_document.call_args
+    assert kwargs["file_data"] == b"docxbytes"
+    assert kwargs["file_name"].endswith(".docx")
+    save_mock.assert_awaited_once_with(555, "# صورت جلسه\n**تصمیم**")
+    assert sent_id == 555
+
+
+@pytest.mark.asyncio
+async def test_deliver_docx_first_result_falls_back_to_markdown_on_conversion_error() -> None:
+    """
+    A toolkit hiccup during DOCX conversion must not swallow the result —
+    fall back to the normal Markdown delivery instead."""
+    from apps.bots.common.delivery import deliver_docx_first_result
+
+    renderer = AsyncMock()
+    renderer.send_inline_text.return_value = MagicMock(id=777)
+
+    with patch(
+        "utils.clients.toolkit.convert_markdown_to_docx",
+        AsyncMock(side_effect=RuntimeError("toolkit down")),
+    ):
+        sent_id = await deliver_docx_first_result(
+            renderer,
+            chat_id=1,
+            message_id=2,
+            result="plain result text",
+            content_type="promptic",
+            user_id="u1",
+            locale="fa",
+        )
+
+    renderer.send_document.assert_not_awaited()
+    renderer.send_inline_text.assert_awaited_once()
+    assert sent_id == 777
 
 
 @pytest.mark.asyncio

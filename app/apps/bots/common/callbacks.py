@@ -200,6 +200,7 @@ async def handle_callback_event(
                 "bot_name": ctx.bot_name,
                 "user_id": usso_uid,
                 "locale": target_lang,
+                "action_name": action_name,
             }
             await actions.run_promptic_action(
                 prompt_name=prompt,
