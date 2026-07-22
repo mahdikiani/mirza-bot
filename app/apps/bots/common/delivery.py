@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import logging
 
+from apps.ai import result_content_cache
 from apps.bots.common import keyboards as kb
 from utils.clients.media import MediaClient
 from utils.i18n import text
@@ -85,6 +86,11 @@ async def deliver_result(
                 reply_keyboard=None,
             )
         sent_id = getattr(sent, "id", None) or getattr(sent, "message_id", None)
+        if sent_id is not None:
+            try:
+                await result_content_cache.save(sent_id, result)
+            except Exception:
+                logger.debug("Failed to cache result content for message %s", sent_id)
 
         await _try_delete(renderer, chat_id, processing_message_id)
 

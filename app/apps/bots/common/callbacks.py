@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import logging
 
+from apps.ai import result_content_cache
 from apps.bots.common import actions, billing, settings
 from apps.bots.common import keyboards as kb
 from apps.bots.common.events import CallbackEvent
@@ -210,8 +211,22 @@ async def handle_callback_event(
 
 
 async def _get_content(event: CallbackEvent, ctx: BotRuntimeContext) -> str:
-    """Get the text content from the message the callback was fired on."""
+    """Get the raw Markdown content the callback's message was delivered with.
+
+    Prefers the cache saved at delivery time (see result_content_cache):
+    once a result is sent as real rich text (bold/italic entities), the
+    platform strips the literal Markdown syntax from the message's plain
+    text, so re-reading it back via download_document no longer contains
+    the "# "/"**" markers the convert-to-file handlers depend on.
+    """
     if event.message_id:
+        try:
+            cached = await result_content_cache.get(event.message_id)
+        except Exception:
+            logger.debug("Result content cache lookup failed for %s", event.message_id)
+            cached = None
+        if cached:
+            return cached
         doc_bytes = await ctx.renderer.download_document(
             event.chat_id, event.message_id
         )
@@ -237,7 +252,7 @@ async def _handle_convert_docx(
         from docx import Document
         from docx.oxml.ns import qn
         from docx.oxml import OxmlElement
-        from docx.shared import Pt, RGBColor
+        from docx.shared import Pt
         from docx.enum.text import WD_ALIGN_PARAGRAPH
         from utils.clients.media import MediaClient
 

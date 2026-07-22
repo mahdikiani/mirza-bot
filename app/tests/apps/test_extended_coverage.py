@@ -525,6 +525,31 @@ async def test_deliver_md_result_long_text_uploads_file() -> None:
 
 
 @pytest.mark.asyncio
+async def test_deliver_md_result_caches_raw_markdown_for_convert_buttons() -> None:
+    """Regression: convert-to-Word/Markdown buttons read this cache back
+    (see apps/ai/result_content_cache.py + callbacks._get_content) since
+    Telegram strips '#'/'**' syntax once a message is sent as rich text."""
+    from apps.bots.common.delivery import deliver_md_result
+
+    renderer = AsyncMock()
+    renderer.send_text.return_value = MagicMock(id=999)
+    with patch(
+        "apps.bots.common.delivery.result_content_cache.save", AsyncMock()
+    ) as save_mock:
+        await deliver_md_result(
+            renderer,
+            chat_id=1,
+            message_id=2,
+            result="# Heading\n**bold**",
+            content_type="promptic",
+            user_id="u1",
+            locale="fa",
+            include_actions=False,
+        )
+    save_mock.assert_awaited_once_with(999, "# Heading\n**bold**")
+
+
+@pytest.mark.asyncio
 async def test_deliver_md_result_long_text_upload_keeps_raw_markdown() -> None:
     """The uploaded .md file must stay real Markdown, not HTML-converted."""
     from apps.bots.common import media_flow
