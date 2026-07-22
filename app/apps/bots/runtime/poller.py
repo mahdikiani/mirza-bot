@@ -7,6 +7,15 @@ import logging
 
 logger = logging.getLogger(__name__)
 
+# Dispatched updates are processed as background tasks (like the webhook
+# route already does) instead of being awaited inline in the polling loop.
+# A single slow/hanging update (e.g. a slow upstream call) must not block
+# the loop from fetching and dispatching newer updates — observed the loop
+# stall for 45+ minutes (heartbeat's updates_consumed frozen across two
+# 5-minute-interval heartbeats) because one update's processing hung and
+# _process_updates awaited it directly.
+_background_tasks: set[asyncio.Task[None]] = set()
+
 
 def _supports_polling(bot: object) -> bool:
     return all(
@@ -46,16 +55,24 @@ def _update_to_payload(update: object) -> dict:
     return payload
 
 
-async def _process_updates(bot: object, updates: list) -> None:
+async def _handle_update_safely(payload: dict, bot_name: str) -> None:
     from apps.bots.bale.handler import handle_bale_update
 
+    try:
+        await handle_bale_update(payload, bot_name)
+    except Exception:
+        logger.exception("Bale: failed to process update")
+
+
+def _process_updates(bot: object, updates: list) -> None:
+    bot_name = getattr(bot, "me", "")
     for update in updates:
-        try:
-            payload = _update_to_payload(update)
-            if payload:
-                await handle_bale_update(payload, getattr(bot, "me", ""))
-        except Exception:
-            logger.exception("Bale: failed to process update")
+        payload = _update_to_payload(update)
+        if not payload:
+            continue
+        task = asyncio.create_task(_handle_update_safely(payload, bot_name))
+        _background_tasks.add(task)
+        task.add_done_callback(_background_tasks.discard)
 
 
 async def _poll_once(bot: object) -> None:
@@ -66,8 +83,11 @@ async def _poll_once(bot: object) -> None:
     if not updates:
         return
 
-    await _process_updates(bot, updates)
+    # Advance the offset as soon as updates are fetched and dispatched, not
+    # after they finish processing — otherwise a slow update would cause the
+    # next get_updates() call to re-fetch the same already-dispatched batch.
     _advance_last_update_id(bot, updates)
+    _process_updates(bot, updates)
 
 
 def _optional_attr(d: dict, msg: object, key: str, attr: str | None = None) -> None:

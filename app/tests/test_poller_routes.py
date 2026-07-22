@@ -33,12 +33,12 @@ class TestPollerOnce:
         bot.process_new_updates = AsyncMock()
 
         with patch(
-            "apps.bots.runtime.poller._process_updates", AsyncMock()
+            "apps.bots.runtime.poller._process_updates", MagicMock()
         ) as process:
             await poller._poll_once(bot)
 
         bot.get_updates.assert_awaited_once()
-        process.assert_not_awaited()
+        process.assert_not_called()
 
     @pytest.mark.asyncio
     async def test_poll_once_with_updates(self) -> None:
@@ -51,11 +51,11 @@ class TestPollerOnce:
         bot.process_new_updates = AsyncMock()
 
         with patch(
-            "apps.bots.runtime.poller._process_updates", AsyncMock()
+            "apps.bots.runtime.poller._process_updates", MagicMock()
         ) as process:
             await poller._poll_once(bot)
 
-        process.assert_awaited_once_with(bot, [update])
+        process.assert_called_once_with(bot, [update])
         assert bot.last_update_id == 1
 
     @pytest.mark.asyncio
@@ -69,7 +69,7 @@ class TestPollerOnce:
         bot.get_updates = AsyncMock(return_value=[old_update, new_update])
         bot.process_new_updates = AsyncMock()
 
-        with patch("apps.bots.runtime.poller._process_updates", AsyncMock()):
+        with patch("apps.bots.runtime.poller._process_updates", MagicMock()):
             await poller._poll_once(bot)
 
         assert bot.last_update_id == 6

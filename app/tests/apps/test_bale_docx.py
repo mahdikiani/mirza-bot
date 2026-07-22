@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import asyncio
 import io
 import zipfile
 from unittest.mock import AsyncMock, MagicMock, patch
@@ -132,7 +133,8 @@ async def test_process_bale_poll_updates() -> None:
         "apps.bots.bale.handler.handle_bale_update",
         AsyncMock(),
     ) as handle_mock:
-        await _process_updates(bot, [update])
+        _process_updates(bot, [update])
+        await asyncio.sleep(0)
     handle_mock.assert_awaited_once()
 
 
