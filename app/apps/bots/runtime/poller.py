@@ -17,8 +17,9 @@ def _supports_polling(bot: object) -> bool:
 
 async def _fetch_updates(bot: object) -> list | None:
     try:
+        offset: int | None = bot.last_update_id + 1 if bot.last_update_id is not None else -1
         return await bot.get_updates(
-            offset=bot.last_update_id + 1 if bot.last_update_id is not None else None,
+            offset=offset,
             timeout=10,
             limit=100,
         )
@@ -186,12 +187,22 @@ async def _polling_loop(interval: float) -> None:
     logger.info(
         "Bale polling started (interval=%.1fs, long-poll timeout=10s)", interval
     )
+    heartbeat_interval = max(300, interval * 10)
+    total_slept = 0.0
     while True:
         for bot in _bale_bots():
             try:
                 await _poll_once(bot)
             except Exception:
                 logger.exception("Bale polling: error for %s", bot)
+
+        total_slept += interval
+        if total_slept >= heartbeat_interval:
+            first = next(iter(_bale_bots()), None)
+            uid = getattr(first, "last_update_id", None) if first else None
+            logger.info("Polling heartbeat (%.0fs): updates_consumed=%s", heartbeat_interval, uid)
+            total_slept = 0.0
+
         await asyncio.sleep(interval)
 
 
