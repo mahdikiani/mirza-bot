@@ -1,6 +1,6 @@
 [project]
 name = "mirza-bot"
-version = "0.1.14"
+version = "0.1.15"
 description = "Mirza Bot — multi-messenger AI bot gateway (Telegram/Bale) with OCR, transcription, chat, webpage extraction, and credit-based billing"
 readme = "README.md"
 requires-python = ">=3.13"
@@ -14,6 +14,7 @@ dependencies = [
     "redis>=8.0.1",
     "telegram-bale-bot[aiohttp]>=4.27.0",
     "telethon>=1.44.0",
+    "python-docx>=1.1.2",
     "usso>=0.31.6",
 ]
 
