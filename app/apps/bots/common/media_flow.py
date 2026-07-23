@@ -165,9 +165,14 @@ async def submit_youtube(
     meta_data: dict,
 ) -> str | None:
     """Submit YouTube transcript task."""
+    from apps.bots.common.link_router import extract_youtube_video_id
+
+    video_id = extract_youtube_video_id(video_url)
+    if not video_id:
+        return None
     webhook_path = webhook_url_for("youtube_webhook")
     result = await YoutubeClient.submit(
-        video_id=video_url,
+        video_id=video_id,
         user_id=user_id,
         webhook_url=webhook_path,
         meta_data=meta_data,
