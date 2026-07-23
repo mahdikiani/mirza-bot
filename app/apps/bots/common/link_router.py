@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import re
 from enum import StrEnum
+from urllib.parse import parse_qs, urlparse
 
 from utils.texttools import contains_valid_urls
 
@@ -66,13 +67,21 @@ def is_audio_video_url(url: str) -> bool:
 
 def extract_youtube_video_id(url: str) -> str | None:
     """Extract YouTube video ID from URL."""
-    patterns = [
-        r"(?:youtube\.com/watch\?v=|youtu\.be/)([a-zA-Z0-9_-]{11})",
-        r"youtube\.com/embed/([a-zA-Z0-9_-]{11})",
-        r"youtube\.com/v/([a-zA-Z0-9_-]{11})",
-    ]
-    for pattern in patterns:
-        match = re.search(pattern, url)
-        if match:
-            return match.group(1)
-    return None
+    parsed = urlparse(url)
+    host = parsed.netloc.lower().removeprefix("www.")
+    if host == "youtu.be":
+        candidate = parsed.path.strip("/").split("/", 1)[0]
+    elif host in {"youtube.com", "m.youtube.com", "music.youtube.com"}:
+        if parsed.path == "/watch":
+            candidate = parse_qs(parsed.query).get("v", [""])[0]
+        else:
+            parts = parsed.path.strip("/").split("/")
+            candidate = (
+                parts[1]
+                if len(parts) >= 2 and parts[0] in {"shorts", "live", "embed", "v"}
+                else ""
+            )
+    else:
+        return None
+
+    return candidate if re.fullmatch(r"[A-Za-z0-9_-]{11}", candidate) else None

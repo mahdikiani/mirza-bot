@@ -63,6 +63,7 @@ messages:
   content_added_to_chat: "Content was added to the conversation. Ask your question now."
   ai_error: "The AI service is temporarily unavailable. Please try again."
   file_processing_error: "An error occurred while processing the file."
+  youtube_link_error: "The YouTube link is invalid or its video ID could not be found."
   link_import_error: "I could not access this link. Please check that it is public."
   result_ready_full: "The result is ready. Use the button below to view the full version:"
   result_document_caption: "📄 Result file"

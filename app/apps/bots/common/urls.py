@@ -90,7 +90,11 @@ async def handle_urls_message(
             await ctx.renderer.edit_message(
                 event.chat_id,
                 sent_message_id(processing_msg, event.message_id),
-                text("messages.file_processing_error", locale=locale),
+                (
+                    text("messages.youtube_link_error", locale=locale)
+                    if "youtube.com" in url.lower() or "youtu.be" in url.lower()
+                    else text("messages.file_processing_error", locale=locale)
+                ),
             )
     if webpage_urls:
         contents = await media_flow.fetch_webpages_parallel(webpage_urls)
