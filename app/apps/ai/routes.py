@@ -125,7 +125,6 @@ async def _deliver_result(payload: TaskWebhookPayload, content_type: str) -> Non
         await pending_tasks.remove(payload.uid)
         return
 
-    await deliver_md_result(
     delivered_message_id = await deliver_md_result(
         renderer,
         chat_id=chat_id,
