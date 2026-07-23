@@ -122,7 +122,7 @@ def md_result_keyboard(
             0,
             [
                 InlineButton(
-                    button("chat_with_ai"),
+                    button("ask_ai"),
                     callback_data="chat:voice",
                 ),
             ],

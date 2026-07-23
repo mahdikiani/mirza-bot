@@ -32,6 +32,7 @@ buttons:
   markdown: "📝 Markdown"
   audio_read: "🔊 Audio Read"
   chat_with_ai: "💬 Chat with AI"
+  ask_ai: "🤖 Ask AI"
   back: "🔙 Back"
 
 messages:
