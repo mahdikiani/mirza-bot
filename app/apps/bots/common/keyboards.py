@@ -117,6 +117,16 @@ def md_result_keyboard(
             InlineButton(button("convert"), callback_data="convert:menu"),
         ],
     ]
+    if content_type in {"voice", "audio", "video"}:
+        rows.insert(
+            0,
+            [
+                InlineButton(
+                    button("chat_with_ai"),
+                    callback_data="chat:voice",
+                ),
+            ],
+        )
     if docx_url:
         rows.append([
             InlineButton("📄 Word (DOCX)", url=docx_url),

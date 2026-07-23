@@ -102,6 +102,9 @@ def toolkit_task_meta(
         "chat_id": event.chat_id,
         "message_id": response_message_id,
         "reply_to_message_id": event.message_id,
+        "source_reply_to_message_id": (
+            str(event.reply_to.message_id) if event.reply_to else None
+        ),
         "bot_name": bot_name,
         "content_type": content_type,
         "user_id": user_id,

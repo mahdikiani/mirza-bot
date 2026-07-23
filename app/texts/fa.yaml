@@ -31,6 +31,7 @@ buttons:
   word: "📄 Word (DOCX)"
   markdown: "📝 Markdown"
   audio_read: "🔊 خواندن صوتی"
+  chat_with_ai: "💬 گفتگو با هوش مصنوعی"
   back: "🔙 برگشت"
 
 messages:

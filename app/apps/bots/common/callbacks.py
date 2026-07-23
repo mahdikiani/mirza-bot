@@ -7,7 +7,7 @@ import logging
 from apps.ai import result_content_cache
 from apps.bots.common import actions, billing, settings
 from apps.bots.common import keyboards as kb
-from apps.bots.common.events import CallbackEvent
+from apps.bots.common.events import CallbackEvent, MessageEvent, MessageRef
 from apps.bots.common.handler_context import (
     BotRuntimeContext,
     bot_return_url,
@@ -171,6 +171,22 @@ async def handle_callback_event(
         await _handle_convert_markdown(event, ctx, locale)
         return
 
+    if data == "chat:transcript":
+        verified = await require_verified_callback(event, ctx, locale)
+        if not verified:
+            return
+        usso_uid, _bot_user = verified
+        await _handle_transcript_chat(event, ctx, locale, usso_uid)
+        return
+
+    if data == "chat:voice":
+        verified = await require_verified_callback(event, ctx, locale)
+        if not verified:
+            return
+        usso_uid, _bot_user = verified
+        await _handle_voice_chat(event, ctx, locale, usso_uid)
+        return
+
     if data.startswith("action:"):
         verified = await require_verified_callback(event, ctx, locale)
         if not verified:
@@ -235,6 +251,139 @@ async def _get_content(event: CallbackEvent, ctx: BotRuntimeContext) -> str:
         if doc_bytes:
             return doc_bytes.decode("utf-8", errors="replace")
     return event.message_text or ""
+
+
+async def _handle_voice_chat(
+    event: CallbackEvent,
+    ctx: BotRuntimeContext,
+    locale: str,
+    usso_uid: str,
+) -> None:
+    """Send a transcribed voice result directly to chat with reply-chain context."""
+    from apps.bots.common import context
+
+    transcript = await _get_content(event, ctx)
+    if not transcript:
+        await ctx.renderer.send_text(
+            event.chat_id,
+            text("messages.no_content", locale=locale),
+            reply_to=event.message_id,
+        )
+        return
+
+    stored = await context.get_message_by_platform_id(
+        event.platform,
+        str(event.chat_id),
+        str(event.message_id),
+    )
+    reply_to = (
+        MessageRef(message_id=stored.reply_to_platform_message_id)
+        if stored and stored.reply_to_platform_message_id
+        else None
+    )
+    chat_event = MessageEvent(
+        platform=event.platform,
+        chat_id=event.chat_id,
+        message_id=event.message_id,
+        sender=event.sender,
+        reply_to=reply_to,
+    )
+    try:
+        response = await context.chat_completion(
+            chat_event,
+            transcript,
+            locale=locale,
+            renderer=ctx.renderer,
+        )
+    except context.InsufficientCreditsError:
+        await context.notify_admin_insufficient_credits(ctx.renderer, event.chat_id)
+        response = text("messages.insufficient_credits", locale=locale)
+
+    sent = await ctx.renderer.send_text(
+        event.chat_id,
+        response[: ctx.capabilities.max_text_chars or 4096],
+        reply_to=event.message_id,
+    )
+    response_message_id = sent_message_id(sent, event.message_id)
+    if str(response_message_id) == str(event.message_id):
+        logger.warning("Assistant message id matched voice chat %s", event.message_id)
+        return
+    await context.store_message(
+        platform=event.platform,
+        platform_chat_id=str(event.chat_id),
+        platform_message_id=str(response_message_id),
+        role="assistant",
+        content=response,
+        user_id=usso_uid,
+        reply_to_platform_message_id=str(event.message_id),
+        content_type="text",
+    )
+
+
+async def _handle_transcript_chat(
+    event: CallbackEvent,
+    ctx: BotRuntimeContext,
+    locale: str,
+    usso_uid: str,
+) -> None:
+    """Send a transcribed voice message to chat with its reply-chain context."""
+    from apps.bots.common import context
+
+    transcript = await _get_content(event, ctx)
+    if not transcript:
+        await ctx.renderer.send_text(
+            event.chat_id,
+            text("messages.no_content", locale=locale),
+            reply_to=event.message_id,
+        )
+        return
+
+    stored = await context.get_message_by_platform_id(
+        event.platform,
+        str(event.chat_id),
+        str(event.message_id),
+    )
+    reply_to = (
+        MessageRef(message_id=stored.reply_to_platform_message_id)
+        if stored and stored.reply_to_platform_message_id
+        else None
+    )
+    chat_event = MessageEvent(
+        platform=event.platform,
+        chat_id=event.chat_id,
+        message_id=event.message_id,
+        sender=event.sender,
+        reply_to=reply_to,
+    )
+    try:
+        response = await context.chat_completion(
+            chat_event,
+            transcript,
+            locale=locale,
+            renderer=ctx.renderer,
+        )
+    except context.InsufficientCreditsError:
+        await context.notify_admin_insufficient_credits(ctx.renderer, event.chat_id)
+        response = text("messages.insufficient_credits", locale=locale)
+
+    sent = await ctx.renderer.send_text(
+        event.chat_id,
+        response[: ctx.capabilities.max_text_chars or 4096],
+        reply_to=event.message_id,
+    )
+    response_message_id = sent_message_id(sent, event.message_id)
+    if str(response_message_id) == str(event.message_id):
+        logger.warning("Assistant message id matched transcript %s", event.message_id)
+        return
+    await context.store_message(
+        platform=event.platform,
+        platform_chat_id=str(event.chat_id),
+        platform_message_id=str(response_message_id),
+        role="assistant",
+        content=response,
+        user_id=usso_uid,
+        reply_to_platform_message_id=str(event.message_id),
+    )
 
 
 async def _handle_convert_docx(

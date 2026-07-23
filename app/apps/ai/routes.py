@@ -126,6 +126,7 @@ async def _deliver_result(payload: TaskWebhookPayload, content_type: str) -> Non
         return
 
     await deliver_md_result(
+    delivered_message_id = await deliver_md_result(
         renderer,
         chat_id=chat_id,
         message_id=response_message_id,
@@ -143,6 +144,20 @@ async def _deliver_result(payload: TaskWebhookPayload, content_type: str) -> Non
             else None
         ),
     )
+    if content_type == "voice" and delivered_message_id and user_id:
+        from apps.bots.common.context import store_message
+
+        await store_message(
+            platform=str(meta.get("platform") or "telegram"),
+            platform_chat_id=str(chat_id),
+            platform_message_id=str(delivered_message_id),
+            role="user",
+            content=result,
+            user_id=str(user_id),
+            reply_to_platform_message_id=meta.get("source_reply_to_message_id"),
+            content_type="voice",
+            meta_data={"source_message_id": meta.get("reply_to_message_id")},
+        )
     await pending_tasks.remove(payload.uid)
 
 
