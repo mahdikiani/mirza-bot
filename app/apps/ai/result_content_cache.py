@@ -1,5 +1,5 @@
-"""Redis-backed cache of raw Markdown result content, keyed by delivered
-message_id.
+"""
+Redis-backed cache of raw Markdown result content, keyed by delivered message_id.
 
 "Convert to Word/Markdown" buttons need the original Markdown of a
 previously delivered result. Re-reading it back from the Telegram/Bale

@@ -4,8 +4,7 @@ from collections.abc import AsyncGenerator, Generator
 
 # Tests should not connect to the Docker-only Redis hostname from local runs.
 os.environ.setdefault("REDIS_URI", "")
-# Empty webhook key disables auth in tests unless explicitly configured.
-os.environ.setdefault("WEBHOOK_API_KEY", "")
+os.environ.setdefault("WEBHOOK_API_KEY", "test-webhook-key")
 
 import httpx
 import pytest
@@ -21,11 +20,11 @@ from server.server import app as fastapi_app
 @pytest.fixture(scope="session")
 def setup_debugpy() -> None:
     if os.getenv("DEBUGPY", "False").lower() in ("true", "1", "yes"):
-        import debugpy  # noqa: T100
+        import debugpy  # ruff:ignore[debugger]
 
-        debugpy.listen(("127.0.0.1", 3020))  # noqa: T100
+        debugpy.listen(("127.0.0.1", 3020))  # ruff:ignore[debugger]
         logging.info("Waiting for debugpy client")
-        debugpy.wait_for_client()  # noqa: T100
+        debugpy.wait_for_client()  # ruff:ignore[debugger]
 
 
 @pytest.fixture(scope="session")

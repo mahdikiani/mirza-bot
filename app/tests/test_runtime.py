@@ -48,7 +48,7 @@ def test_app_version_falls_back_to_pyproject() -> None:
         "apps.bots.runtime.handlers.version",
         side_effect=PackageNotFoundError,
     ):
-        assert app_version() == "0.1.6"
+        assert app_version() == "0.1.20"
 
 
 def test_get_bot_returns_matching_bot() -> None:
@@ -186,7 +186,9 @@ async def test_telethon_event_renderer_sends_text() -> None:
     result = await renderer.send_text(100, "hello", reply_to=10)
 
     assert result == "sent"
-    client.send_message.assert_awaited_once_with(100, "hello", reply_to=10)
+    client.send_message.assert_awaited_once_with(
+        100, "hello", parse_mode="html", reply_to=10
+    )
 
 
 @pytest.mark.asyncio

@@ -71,7 +71,8 @@ docker compose up -d --build
 |-------|-------|
 | `TELEGRAM_TOKEN` | توکن ربات تلگرام |
 | `BALE_BOT_TOKEN` | توکن ربات بله |
-| `AI_API_KEY` | API Key برای ai-toolkit |
+| `AI_API_KEY` | API Key برای ai-toolkit (outbound) |
+| `WEBHOOK_API_KEY` | Shared secret برای inbound webhookها (جدا از `AI_API_KEY`؛ fail-closed) |
 | `USSO_BASE_URL` | آدرس سرویس USSO |
 | `AI_TOOLKIT_BASE_URL` | آدرس ai-toolkit |
 

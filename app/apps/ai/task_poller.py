@@ -144,18 +144,36 @@ async def _poll_once() -> None:
         status = data.get("task_status")
         if status == "completed":
             result = data.get("result") or ""
-            if result:
-                task_meta = task.get("meta_data") or {}
+            task_meta = task.get("meta_data") or {}
+            if not result:
                 payload = TaskWebhookPayload(
                     uid=task["task_uid"],
-                    task_status="completed",
+                    task_status="error",
                     meta_data=task_meta,
-                    result=result,
+                    task_report=text(
+                        "messages.task_error",
+                        locale=str(task_meta.get("locale") or "fa"),
+                    ),
                 )
                 ct = ct_map.get(task["task_type"], "document")
                 await _deliver_result(payload, ct)
                 await pending_tasks.remove(task["task_uid"])
-                logger.info("Poller: %s task %s completed", label, task["task_uid"])
+                logger.warning(
+                    "Poller: %s task %s completed with empty result",
+                    label,
+                    task["task_uid"],
+                )
+                continue
+            payload = TaskWebhookPayload(
+                uid=task["task_uid"],
+                task_status="completed",
+                meta_data=task_meta,
+                result=result,
+            )
+            ct = ct_map.get(task["task_type"], "document")
+            await _deliver_result(payload, ct)
+            await pending_tasks.remove(task["task_uid"])
+            logger.info("Poller: %s task %s completed", label, task["task_uid"])
         elif status == "error":
             task_meta = task.get("meta_data") or {}
             error_result = data.get("result") or data.get("error") or "Unknown error"

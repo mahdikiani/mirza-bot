@@ -11,7 +11,7 @@ from apps.accounts.handlers import (
     usso_identifier_type_for_platform,
 )
 from apps.bots.common import models
-from apps.bots.common.events import CallbackEvent, MessageEvent
+from apps.bots.common.events import CallbackEvent, InlineQueryEvent, MessageEvent
 from apps.bots.common.onboarding import get_bot_user
 
 logger = logging.getLogger(__name__)
@@ -35,16 +35,23 @@ class VerifiedUser:
     usso_revalidate_pending: bool = False
 
 
-def platform_user_id(event: MessageEvent | CallbackEvent) -> str | None:
+PlatformEvent = MessageEvent | CallbackEvent | InlineQueryEvent
+
+
+def platform_user_id(event: PlatformEvent) -> str | None:
     """Messenger-scoped user id from a normalized event."""
     if event.sender:
         return str(event.sender.id)
-    value = event.metadata.get("user_id") or event.metadata.get("telegram_user_id")
+    value = (
+        event.metadata.get("user_id")
+        or event.metadata.get("platform_user_id")
+        or event.metadata.get("telegram_user_id")
+    )
     return str(value) if value else None
 
 
 async def resolve_verified_user(
-    event: MessageEvent | CallbackEvent,
+    event: PlatformEvent,
 ) -> tuple[VerifiedUserStatus, VerifiedUser | None]:
     """
     Resolve a verified user for bot flows.
@@ -115,5 +122,5 @@ async def resolve_verified_user(
 async def require_verified_user_for_start(
     event: MessageEvent,
 ) -> tuple[VerifiedUserStatus, VerifiedUser | None]:
-    """Same as resolve_verified_user; used for /start menu vs contact prompt."""
+    """Resolve verified user for /start menu vs contact prompt."""
     return await resolve_verified_user(event)

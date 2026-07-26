@@ -1,4 +1,5 @@
-"""Tests for utils.markdown_html.markdown_to_telegram_html.
+"""
+Tests for utils.markdown_html.markdown_to_telegram_html.
 
 Regression coverage for the "**" showing up literally in delivered results:
 renderers send with parse_mode="html" (Telethon explicitly, Bale by client
@@ -6,13 +7,22 @@ default), but AI results come back as Markdown — this converter bridges
 that gap into Telegram's restricted HTML tag subset.
 """
 
+
 from __future__ import annotations
 
-import xml.etree.ElementTree as ET
+from html.parser import HTMLParser
 
 import pytest
 
 from utils.markdown_html import markdown_to_telegram_html
+
+
+class _WellFormedHtmlChecker(HTMLParser):
+    """Fail the test when html.parser reports a structural error."""
+
+    def error(self, message: str) -> None:
+        """Raise AssertionError so pytest fails clearly."""
+        raise AssertionError(message)
 
 
 class TestInlineFormatting:
@@ -93,7 +103,9 @@ class TestHtmlSafety:
         out = markdown_to_telegram_html(raw)
         if not out:
             return
-        ET.fromstring(f"<root>{out}</root>")
+        checker = _WellFormedHtmlChecker()
+        checker.feed(f"<root>{out}</root>")
+        checker.close()
 
 
 class TestRealWorldSummary:

@@ -69,31 +69,36 @@ select = [
     "ERA",   # remove commented code
     "RUF",   # ruff-specific improvements
 ]
-ignore = ["TRY003", "COM812", "B008", "D202", "D203", "D209", "D212", "D413"]
+# Same baseline as before; names required by preview `rule-codes-in-selectors`.
+ignore = [
+    "raise-vanilla-args",
+    "missing-trailing-comma",
+    "function-call-in-default-argument",
+    "blank-line-after-function",
+    "incorrect-blank-line-before-class",
+    "new-line-after-last-paragraph",
+    "multi-line-summary-first-line",
+    "missing-blank-line-after-last-section",
+]
 
 [tool.ruff.lint.per-file-ignores]
 "tests/*" = [
-    "D100",  # Test modules are named by behavior, not public API docs.
-    "D101",
-    "D102",
-    "D103",
-    "D104",
-    "D105",
-    "D107",
+    "undocumented-public-module",  # Test modules are named by behavior, not public API docs.
+    "undocumented-public-class",
+    "undocumented-public-method",
+    "undocumented-public-function",
+    "undocumented-public-package",
+    "undocumented-magic-method",
+    "undocumented-public-init",
     "ANN",
-    "RUF029",
-    "E111",
-    "E501",
-    "G004",
-    "RUF076",
-    "S101",
-    "S105",  # Tests use fake tokens and API keys.
+    "unused-async",
+    "indentation-with-invalid-multiple",
+    "line-too-long",
+    "logging-f-string",
+    "stdlib-module-shadowing",
+    "assert",
+    "hardcoded-password-string",  # Tests use fake tokens and API keys.
 ]
-"apps/bots/common/handler.py" = ["D102", "C901"]
-"apps/bots/common/renderer_registry.py" = ["D102"]
-"apps/bots/telegram/gateway.py" = ["D102", "C901"]
-"apps/bots/bale/renderer.py" = ["D102"]
-"apps/bots/common/docx.py" = ["S314", "S405"]
 
 [tool.ruff.format]
 quote-style = "double"

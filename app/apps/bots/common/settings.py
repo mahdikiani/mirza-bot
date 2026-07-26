@@ -6,20 +6,20 @@ import logging
 
 from apps.accounts.clients import usso_accounts_client
 from apps.bots.common import models
-from apps.bots.common.onboarding import SUPPORTED_LOCALES
+from apps.bots.common.onboarding import SUPPORTED_LOCALES, get_bot_user
 
 logger = logging.getLogger(__name__)
 
 
 async def set_preferred_language(
-    telegram_user_id: str,
+    platform_user_id: str,
     locale: str,
 ) -> models.BotUser | None:
     """Persist language preference locally and sync to USSO profile."""
     if locale not in SUPPORTED_LOCALES:
         locale = "fa"
 
-    bot_user = await models.BotUser.find_one({"telegram_user_id": telegram_user_id})
+    bot_user = await get_bot_user(platform_user_id)
     if not bot_user:
         return None
 
@@ -60,12 +60,21 @@ AVAILABLE_MODELS = [
 DEFAULT_MODEL = "openai/gpt-5.6-terra"
 
 
+def is_allowed_model(model: str) -> bool:
+    """Return True when *model* is in the configured allowlist."""
+    return model in AVAILABLE_MODELS
+
+
 async def set_preferred_model(
-    telegram_user_id: str,
+    platform_user_id: str,
     model: str,
 ) -> models.BotUser | None:
     """Persist model preference locally and sync to USSO profile."""
-    bot_user = await models.BotUser.find_one({"telegram_user_id": telegram_user_id})
+    if not is_allowed_model(model):
+        logger.warning("Rejected non-allowlisted model preference: %s", model)
+        return None
+
+    bot_user = await get_bot_user(platform_user_id)
     if not bot_user:
         return None
 
@@ -85,17 +94,21 @@ async def set_preferred_model(
     return bot_user
 
 
-async def get_user_locale(telegram_user_id: str) -> str:
-    """Return preferred locale for a Telegram user."""
-    bot_user = await models.BotUser.find_one({"telegram_user_id": telegram_user_id})
+async def get_user_locale(platform_user_id: str) -> str:
+    """Return preferred locale for a messenger user."""
+    bot_user = await get_bot_user(platform_user_id)
     if bot_user and bot_user.preferred_language:
         return bot_user.preferred_language
     return "fa"
 
 
-async def get_user_model(telegram_user_id: str) -> str:
-    """Return preferred model for a Telegram user."""
-    bot_user = await models.BotUser.find_one({"telegram_user_id": telegram_user_id})
-    if bot_user and bot_user.preferred_model:
+async def get_user_model(platform_user_id: str) -> str:
+    """Return preferred model for a messenger user."""
+    bot_user = await get_bot_user(platform_user_id)
+    if (
+        bot_user
+        and bot_user.preferred_model
+        and is_allowed_model(bot_user.preferred_model)
+    ):
         return bot_user.preferred_model
     return DEFAULT_MODEL

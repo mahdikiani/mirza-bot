@@ -1,5 +1,8 @@
 # Project Architecture Guide
 
+> Start here for the human overview: [README.md](./README.md) and
+> [USER_JOURNEYS.md](./USER_JOURNEYS.md).
+
 This project is a multi-messenger bot backend. Telegram runs through Telethon;
 Bale runs through telebot/`telegram-bale-bot`. Both adapters normalize updates
 into shared events and call the same product logic in `apps/bots/common/`.
@@ -57,14 +60,17 @@ There is no shared `BaseBot` across messengers. Shared abstraction is
 ### `apps/bots/common/`
 
 - `events.py` — `MessageEvent`, `CallbackEvent`, …
-- `handler.py` — orchestration entry (`handle_message_event`, …)
+- `handler.py` — orchestration entry (`handle_message_event`, …); logic in `handlers/`
+- `callbacks/` — thin dispatcher + settings/billing/convert/chat modules
 - `media_flow.py`, `billing.py`, `context.py`, `actions.py`, …
 - `renderer_registry.py` — bot_name → renderer for AI webhooks
 
 ### `apps/bots/telegram/`
 
 - `bot.py` — token / username config
-- `gateway.py` — Telethon loop + `TelethonEventRenderer`
+- `gateway.py` — Telethon event loop (`TelethonGateway`)
+- `renderer.py` — `TelethonEventRenderer`
+- `normalizer.py` — Telethon → shared events
 
 ### `apps/bots/bale/`
 
@@ -100,11 +106,13 @@ MONGO_URI=...
 REDIS_URI=...
 AI_TOOLKIT_BASE_URL=...
 AI_API_KEY=...
+WEBHOOK_API_KEY=...   # inbound webhooks only; do not reuse AI_API_KEY
 MEDIA_BASE_URL=...
 MEDIA_API_KEY=...
 ```
 
 Bale always polls via getUpdates. Telegram always uses Telethon.
+Inbound AI/Bale webhooks require `WEBHOOK_API_KEY` (fail-closed if unset).
 
 ## How To Add A Feature
 

@@ -39,7 +39,13 @@ def _file_from_message(payload: dict[str, Any]) -> tuple[FileRef | None, str]:
     if document := payload.get("document"):
         mime = (document.get("mime_type") or "").lower()
         fname = document.get("file_name") or ""
-        if mime.startswith("audio/") or fname.lower().endswith((".mp3", ".ogg", ".wav", ".m4a", ".flac")):
+        if mime.startswith("audio/") or fname.lower().endswith((
+            ".mp3",
+            ".ogg",
+            ".wav",
+            ".m4a",
+            ".flac",
+        )):
             ct = "audio"
         elif mime.startswith("video/"):
             ct = "video"

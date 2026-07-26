@@ -4,11 +4,11 @@ from __future__ import annotations
 
 import logging
 
+from apps.accounts.clients import usso_accounts_client
 from apps.accounts.handlers import (
     invalidate_usso_user_cache,
     usso_identifier_type_for_platform,
 )
-from apps.accounts.clients import usso_accounts_client
 from apps.bots.common import models
 from apps.bots.common.events import MessageEvent
 from utils.i18n import text
@@ -57,9 +57,7 @@ async def _sync_usso_user(
             if existing:
                 usso_uid = str(existing.uid)
                 try:
-                    await usso.link_identifier(
-                        usso_uid, identifier_type, messenger_id
-                    )
+                    await usso.link_identifier(usso_uid, identifier_type, messenger_id)
                 except Exception:
                     logger.exception(
                         "Failed to link %s for user %s",

@@ -50,8 +50,7 @@ def classify_urls_in_text(text_value: str) -> list[tuple[str, LinkKind]]:
 
 def is_media_file_url(url: str) -> bool:
     """Return whether the URL likely points to OCR/transcribe media."""
-    kind = classify_url(url)
-    return kind in {LinkKind.file, LinkKind.gdrive}
+    return classify_url(url) == LinkKind.file
 
 
 def is_audio_video_url(url: str) -> bool:

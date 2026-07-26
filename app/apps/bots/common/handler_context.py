@@ -23,7 +23,9 @@ from utils.i18n import text
 class EventRenderer(Protocol):
     """Render bot messages and UI on a messenger platform."""
 
-    async def send_typing(self, chat_id: int | str) -> None: ...
+    async def send_typing(self, chat_id: int | str) -> None:
+        """Show a typing indicator in the chat."""
+        ...
 
     async def send_text(
         self,
@@ -31,7 +33,9 @@ class EventRenderer(Protocol):
         text_value: str,
         reply_to: int | str | None = None,
         reply_keyboard: ReplyKeyboard | None = None,
-    ) -> object | None: ...
+    ) -> object | None:
+        """Send a plain text message."""
+        ...
 
     async def edit_message(
         self,
@@ -39,22 +43,28 @@ class EventRenderer(Protocol):
         message_id: int | str,
         text: str | None = None,
         inline_keyboard: InlineKeyboard | None = None,
-    ) -> None: ...
+    ) -> None:
+        """Edit an existing message body or keyboard."""
+        ...
 
     async def answer_callback(
         self,
         callback_id: int | str,
         text_value: str = "",
         raw_event: object | None = None,
-    ) -> None: ...
+    ) -> None:
+        """Acknowledge a callback query."""
+        ...
 
-    async def send_contact_request(
-        self, chat_id: int | str, text_value: str
-    ) -> None: ...
+    async def send_contact_request(self, chat_id: int | str, text_value: str) -> None:
+        """Ask the user to share a contact."""
+        ...
 
     async def download_attached_file(
         self, event: MessageEvent
-    ) -> tuple[bytes, str] | None: ...
+    ) -> tuple[bytes, str] | None:
+        """Download the file attached to a message event."""
+        ...
 
     async def send_inline_text(
         self,
@@ -62,9 +72,13 @@ class EventRenderer(Protocol):
         text_value: str,
         inline_keyboard: InlineKeyboard,
         reply_to: int | str | None = None,
-    ) -> object | None: ...
+    ) -> object | None:
+        """Send text with an inline keyboard."""
+        ...
 
-    async def send_upload_action(self, chat_id: int | str) -> None: ...
+    async def send_upload_action(self, chat_id: int | str) -> None:
+        """Show an upload/progress chat action."""
+        ...
 
     async def answer_inline_query(
         self,
@@ -72,7 +86,9 @@ class EventRenderer(Protocol):
         text_value: str,
         *,
         raw_event: object | None = None,
-    ) -> None: ...
+    ) -> None:
+        """Answer an inline query with a text result."""
+        ...
 
     async def send_document(
         self,
@@ -82,11 +98,15 @@ class EventRenderer(Protocol):
         caption: str | None = None,
         reply_to: int | str | None = None,
         inline_keyboard: InlineKeyboard | None = None,
-    ) -> object | None: ...
+    ) -> object | None:
+        """Send a document attachment."""
+        ...
 
     async def download_document(
         self, chat_id: int | str, message_id: int | str
-    ) -> bytes | None: ...
+    ) -> bytes | None:
+        """Download a previously sent document by message id."""
+        ...
 
 
 @dataclass(frozen=True)
@@ -102,14 +122,17 @@ class BotRuntimeContext:
 
 
 def event_user_id(event: MessageEvent | CallbackEvent) -> str | None:
+    """Return the platform user id for an event."""
     return platform_user_id(event)
 
 
 def is_command(text_value: str, command: str) -> bool:
+    """Return True when *text_value* is exactly *command* or starts with it."""
     return text_value == command or text_value.startswith(f"{command} ")
 
 
 def strip_bot_mention(text_value: str, bot_username: str | None) -> str:
+    """Remove an @bot mention from message text."""
     if not bot_username:
         return text_value
     pattern = re.compile(rf"@?{re.escape(bot_username)}\b", re.IGNORECASE)
@@ -117,6 +140,7 @@ def strip_bot_mention(text_value: str, bot_username: str | None) -> str:
 
 
 def bot_return_url(ctx: BotRuntimeContext) -> str:
+    """Build a deep-link URL back to this bot."""
     if ctx.platform == "bale":
         return f"https://ble.ir/{ctx.bot_username or ctx.bot_name}"
     return f"https://t.me/{ctx.bot_username or ctx.bot_name}"
@@ -134,6 +158,7 @@ async def prompt_contact(
     event: MessageEvent | CallbackEvent,
     locale: str,
 ) -> None:
+    """Ask the user to share contact for verification."""
     await ctx.renderer.send_contact_request(
         event.chat_id,
         text("messages.start_contact", locale=locale),
@@ -145,6 +170,7 @@ async def require_verified_user(
     ctx: BotRuntimeContext,
     locale: str,
 ) -> tuple[str, object] | None:
+    """Resolve a verified user for a message, or prompt/onboard."""
     status, verified = await resolve_verified_user(event)
     if status == VerifiedUserStatus.no_platform_user:
         await ctx.renderer.send_text(
@@ -162,6 +188,7 @@ async def require_verified_callback(
     ctx: BotRuntimeContext,
     locale: str,
 ) -> tuple[str, object] | None:
+    """Resolve a verified user for a callback, or prompt/onboard."""
     status, verified = await resolve_verified_user(event)
     if status == VerifiedUserStatus.no_platform_user:
         await ctx.renderer.send_text(

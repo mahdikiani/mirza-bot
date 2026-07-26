@@ -1,5 +1,6 @@
 """Failure-mode tests for webhook auth and poller offset handling."""
 
+
 from __future__ import annotations
 
 from dataclasses import dataclass
@@ -31,6 +32,19 @@ async def test_ai_webhook_rejects_invalid_api_key(client: httpx.AsyncClient) -> 
 
 
 @pytest.mark.asyncio
+async def test_ai_webhook_rejects_when_key_unconfigured(
+    client: httpx.AsyncClient,
+) -> None:
+    with patch.object(Settings, "webhook_api_key", None):
+        resp = await client.post(
+            "/ai/ocr/webhook/",
+            json={"uid": "t1", "task_status": "completed", "result": "x"},
+            headers={"x-api-key": "anything"},
+        )
+    assert resp.status_code == 503
+
+
+@pytest.mark.asyncio
 async def test_ai_webhook_accepts_valid_api_key(client: httpx.AsyncClient) -> None:
     with (
         patch.object(Settings, "webhook_api_key", "secret-key"),
@@ -58,10 +72,12 @@ async def test_bale_webhook_rejects_invalid_api_key(client: httpx.AsyncClient) -
 @pytest.mark.asyncio
 async def test_poller_advances_offset_immediately_after_fetch() -> None:
     """
-    Offset must advance as soon as updates are fetched and dispatched as
-    background tasks, not after processing finishes — otherwise a slow
-    update would block the loop from ever reaching newer ones (the bug that
-    caused the Bale bot to appear unresponsive for 45+ minutes)."""
+    Advance offset as soon as updates are fetched and dispatched.
+
+    Waiting until processing finishes would let a slow update block the loop
+    from ever reaching newer ones (the bug that caused the Bale bot to appear
+    unresponsive for 45+ minutes).
+    """
     bot = AsyncMock()
     bot.last_update_id = None
     bot.me = "test_bot"
@@ -92,10 +108,11 @@ async def test_poller_does_not_advance_when_fetch_fails() -> None:
 @pytest.mark.asyncio
 async def test_hanging_update_does_not_block_next_poll() -> None:
     """
-    Regression test for the real incident: one slow/hanging update must
-    not prevent _poll_once from returning promptly so the loop can fetch the
-    next batch, instead of freezing the whole bot for as long as that one
-    update takes."""
+    Ensure one hanging update does not block the next poll.
+
+    `_poll_once` must return promptly so the loop can fetch the next batch,
+    instead of freezing the whole bot for as long as that one update takes.
+    """
     import asyncio
 
     bot = AsyncMock()

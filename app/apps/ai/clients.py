@@ -20,7 +20,9 @@ class InsufficientCreditsError(RuntimeError):
     """Raised when the user's OpenRouter credits are insufficient."""
 
 
-_WEBHOOK_HEADERS = {"x-api-key": Settings.webhook_api_key} if Settings.webhook_api_key else None
+def _webhook_headers() -> dict[str, str] | None:
+    key = Settings.webhook_api_key
+    return {"x-api-key": key} if key else None
 
 
 class OCRClient:
@@ -40,8 +42,8 @@ class OCRClient:
             "webhook_url": webhook_url,
             "meta_data": meta_data or {},
         }
-        if _WEBHOOK_HEADERS:
-            payload["webhook_custom_headers"] = _WEBHOOK_HEADERS
+        if headers := _webhook_headers():
+            payload["webhook_custom_headers"] = headers
         async with toolkit_client() as c:
             resp = await c.post(
                 "/ocrs",
@@ -76,8 +78,8 @@ class TranscribeClient:
             "webhook_url": webhook_url,
             "meta_data": meta_data or {},
         }
-        if _WEBHOOK_HEADERS:
-            payload["webhook_custom_headers"] = _WEBHOOK_HEADERS
+        if headers := _webhook_headers():
+            payload["webhook_custom_headers"] = headers
         async with toolkit_client() as c:
             resp = await c.post(
                 "/transcribes",
@@ -109,8 +111,8 @@ class YoutubeClient:
         payload: dict[str, object] = {"video_id": video_id, "user_id": user_id}
         if webhook_url:
             payload["webhook_url"] = webhook_url
-        if _WEBHOOK_HEADERS:
-            payload["webhook_custom_headers"] = _WEBHOOK_HEADERS
+        if headers := _webhook_headers():
+            payload["webhook_custom_headers"] = headers
         if meta_data:
             payload["meta_data"] = meta_data
         async with toolkit_client() as c:
@@ -138,17 +140,16 @@ class WebpageClient:
         meta_data: dict | None = None,
     ) -> dict:
         """Submit a webpage extraction task."""
+        payload: dict[str, object] = {
+            "url": url,
+            "user_id": user_id,
+            "webhook_url": webhook_url,
+            "meta_data": meta_data or {},
+        }
+        if headers := _webhook_headers():
+            payload["webhook_custom_headers"] = headers
         async with toolkit_client() as c:
-            resp = await c.post(
-                "/webpages",
-                json={
-                    "url": url,
-                    "user_id": user_id,
-                    "webhook_url": webhook_url,
-                    "webhook_custom_headers": _WEBHOOK_HEADERS,
-                    "meta_data": meta_data or {},
-                },
-            )
+            resp = await c.post("/webpages", json=payload)
             resp.raise_for_status()
             return resp.json()
 
@@ -181,8 +182,8 @@ class PrompticClient:
         payload: dict[str, Any] = {"input_variables": input_variables}
         if webhook_url:
             payload["webhook_url"] = webhook_url
-        if _WEBHOOK_HEADERS:
-            payload["webhook_custom_headers"] = _WEBHOOK_HEADERS
+        if headers := _webhook_headers():
+            payload["webhook_custom_headers"] = headers
         if meta:
             payload["meta_data"] = meta
 

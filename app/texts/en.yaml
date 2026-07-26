@@ -64,6 +64,7 @@ messages:
   ai_error: "The AI service is temporarily unavailable. Please try again."
   file_processing_error: "An error occurred while processing the file."
   youtube_link_error: "The YouTube link is invalid or its video ID could not be found."
+  gdrive_unsupported: "Google Drive links are not supported yet. Please download the file and send it here, or share a direct file URL."
   link_import_error: "I could not access this link. Please check that it is public."
   result_ready_full: "The result is ready. Use the button below to view the full version:"
   result_document_caption: "📄 Result file"
@@ -76,6 +77,7 @@ messages:
   purchase_error: "Could not create the order. Please try again."
   purchase_prompt: "Use the button below to complete payment:"
   inline_empty: "Please type your question."
+  inline_need_auth: "To use inline mode, open the bot first and verify your phone number."
   inline_title: "AI Answer"
   profile: |
     username: <code>{username}</code>
@@ -119,6 +121,7 @@ messages:
   language_changed: "Your language was updated."
   model_prompt: "Choose your model:"
   model_changed: "Model changed to {model}."
+  model_not_allowed: "That model is not allowed."
   insufficient_credits: "You do not have enough credits. Please top up your account."
   onboarding_success: "You're all set! Send text, files, voice, video, or links."
   onboarding_error: "There was a problem verifying your phone number. Please try again in a moment."

@@ -127,7 +127,7 @@ async def test_handle_message_start_command() -> None:
     )
 
     with patch(
-        "apps.bots.common.handler.resolve_verified_user",
+        "apps.bots.common.handlers.messages.resolve_verified_user",
         AsyncMock(return_value=_ok_verified(telegram_user_id="123")),
     ):
         await handle_message_event(event, _context(renderer))
@@ -150,7 +150,7 @@ async def test_handle_message_start_without_user_requests_contact() -> None:
     )
 
     with patch(
-        "apps.bots.common.handler.resolve_verified_user",
+        "apps.bots.common.handlers.messages.resolve_verified_user",
         AsyncMock(return_value=(VerifiedUserStatus.needs_contact, None)),
     ):
         await handle_message_event(event, _context(renderer))
@@ -207,15 +207,15 @@ async def test_handle_message_sends_ai_response() -> None:
 
     with (
         patch(
-            "apps.bots.common.handler.require_verified_user",
+            "apps.bots.common.handlers.messages.require_verified_user",
             AsyncMock(return_value=("usso-1", _verified_bot_user())),
         ),
         patch(
-            "apps.bots.common.handler.context.chat_completion",
+            "apps.bots.common.handlers.messages.context.chat_completion",
             AsyncMock(return_value="ai response"),
         ) as chat_completion,
         patch(
-            "apps.bots.common.handler.context.store_message",
+            "apps.bots.common.handlers.messages.context.store_message",
             AsyncMock(),
         ),
     ):
@@ -247,15 +247,15 @@ async def test_handle_message_uses_group_session_id_and_thread() -> None:
 
     with (
         patch(
-            "apps.bots.common.handler.require_verified_user",
+            "apps.bots.common.handlers.messages.require_verified_user",
             AsyncMock(return_value=("usso-1", _verified_bot_user())),
         ),
         patch(
-            "apps.bots.common.handler.context.chat_completion",
+            "apps.bots.common.handlers.messages.context.chat_completion",
             AsyncMock(return_value="ai response"),
         ) as chat_completion,
         patch(
-            "apps.bots.common.handler.context.store_message",
+            "apps.bots.common.handlers.messages.context.store_message",
             AsyncMock(),
         ),
     ):
@@ -279,7 +279,7 @@ async def test_handle_message_file_without_text_acknowledges_processing() -> Non
 
     with (
         patch(
-            "apps.bots.common.handler.require_verified_user",
+            "apps.bots.common.handlers.messages.require_verified_user",
             AsyncMock(return_value=("usso-1", _verified_bot_user())),
         ),
         patch(
@@ -307,7 +307,7 @@ async def test_handle_message_file_with_caption_uses_ocr() -> None:
 
     with (
         patch(
-            "apps.bots.common.handler.require_verified_user",
+            "apps.bots.common.handlers.messages.require_verified_user",
             AsyncMock(return_value=("usso-1", _verified_bot_user())),
         ),
         patch(
@@ -315,7 +315,7 @@ async def test_handle_message_file_with_caption_uses_ocr() -> None:
             AsyncMock(return_value="task-1"),
         ) as submit_mock,
         patch(
-            "apps.bots.common.handler.context.chat_completion",
+            "apps.bots.common.handlers.messages.context.chat_completion",
             AsyncMock(),
         ) as chat_completion,
     ):
@@ -338,7 +338,7 @@ async def test_async_url_uses_processing_message_for_webhook_delivery() -> None:
 
     with (
         patch(
-            "apps.bots.common.handler.require_verified_user",
+            "apps.bots.common.handlers.messages.require_verified_user",
             AsyncMock(return_value=("usso-1", _verified_bot_user())),
         ),
         patch(
@@ -365,15 +365,15 @@ async def test_handle_message_missing_session_id_returns_error() -> None:
 
     with (
         patch(
-            "apps.bots.common.handler.require_verified_user",
+            "apps.bots.common.handlers.messages.require_verified_user",
             AsyncMock(return_value=("usso-1", _verified_bot_user())),
         ),
         patch(
-            "apps.bots.common.handler.context.chat_completion",
+            "apps.bots.common.handlers.messages.context.chat_completion",
             AsyncMock(return_value=""),
         ),
         patch(
-            "apps.bots.common.handler.context.store_message",
+            "apps.bots.common.handlers.messages.context.store_message",
             AsyncMock(),
         ),
     ):
@@ -394,15 +394,15 @@ async def test_handle_message_ai_exception_returns_error() -> None:
 
     with (
         patch(
-            "apps.bots.common.handler.require_verified_user",
+            "apps.bots.common.handlers.messages.require_verified_user",
             AsyncMock(return_value=("usso-1", _verified_bot_user())),
         ),
         patch(
-            "apps.bots.common.handler.context.chat_completion",
+            "apps.bots.common.handlers.messages.context.chat_completion",
             AsyncMock(return_value="خطای هوش مصنوعی"),
         ),
         patch(
-            "apps.bots.common.handler.context.store_message",
+            "apps.bots.common.handlers.messages.context.store_message",
             AsyncMock(),
         ),
     ):

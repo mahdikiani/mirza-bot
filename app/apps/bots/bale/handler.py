@@ -43,6 +43,7 @@ async def handle_bale_update(payload: dict[str, Any], bot_name: str) -> None:
         capabilities=PlatformCapabilities(
             supports_typing=True,
             supports_callback_buttons=True,
+            supports_inline_query=False,
             max_text_chars=4096,
         ),
         bot_user_id=bot_user_id,

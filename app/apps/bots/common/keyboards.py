@@ -114,7 +114,9 @@ def md_result_keyboard(
             InlineButton(button("quiz"), callback_data="action:quiz"),
         ],
         [
-            InlineButton(button("convert"), callback_data="convert:menu"),
+            InlineButton(
+                button("convert"), callback_data=f"convert:menu:{content_type}"
+            ),
         ],
     ]
     if content_type in {"voice", "audio", "video"}:
@@ -134,19 +136,29 @@ def md_result_keyboard(
     return InlineKeyboard(rows=rows)
 
 
-def convert_keyboard(content_type: str = "", media_url: str | None = None) -> InlineKeyboard:
-    """Build conversion sub-menu keyboard."""
+def convert_keyboard(
+    content_type: str = "", media_url: str | None = None
+) -> InlineKeyboard:
+    """Build conversion sub-menu keyboard (only implemented formats)."""
     rows = [
         [InlineButton(button("word"), callback_data="convert:docx")],
         [InlineButton(button("markdown"), callback_data="convert:markdown")],
     ]
-    if content_type in ("voice", "video", "audio"):
-        rows.append([InlineButton(button("audio_read"), callback_data="convert:audio")])
     if Settings.viewer_base_url:
         if media_url:
-            rows.append([InlineButton(button("view_online"), url=f"{Settings.viewer_base_url}?url={media_url}")])
+            rows.append([
+                InlineButton(
+                    button("view_online"),
+                    url=f"{Settings.viewer_base_url}?url={media_url}",
+                )
+            ])
         elif content_type in ("voice", "video", "audio"):
-            rows.append([InlineButton(button("view_online"), url=f"{Settings.viewer_base_url}?type={content_type}")])
+            rows.append([
+                InlineButton(
+                    button("view_online"),
+                    url=f"{Settings.viewer_base_url}?type={content_type}",
+                )
+            ])
     rows.append([InlineButton(button("back"), callback_data="convert:back")])
     return InlineKeyboard(rows=rows)
 
@@ -169,7 +181,9 @@ def products_keyboard(
             price = f"{toman:,}"
         except (ValueError, TypeError):
             price = str(raw)
-        rows.append([InlineButton(f"{name} — {price} تومان", callback_data=f"buy:{uid}")])
+        rows.append([
+            InlineButton(f"{name} — {price} تومان", callback_data=f"buy:{uid}")
+        ])
 
     nav: list[InlineButton] = []
     if page > 0:

@@ -17,6 +17,8 @@ from apps.ai.clients import (
     YoutubeClient,
 )
 
+_WEBHOOK_HEADERS = {"x-api-key": "test-webhook-key"}
+
 
 def _response(payload: dict) -> MagicMock:
     resp = MagicMock()
@@ -51,6 +53,7 @@ async def test_ocr_submit_uses_toolkit_ocrs_route() -> None:
             "user_id": "user-1",
             "webhook_url": "https://bot/ocr",
             "meta_data": {"chat_id": 10},
+            "webhook_custom_headers": _WEBHOOK_HEADERS,
         },
     )
 
@@ -76,6 +79,7 @@ async def test_transcribe_submit_forwards_user_and_metadata() -> None:
             "user_id": "user-1",
             "webhook_url": "https://bot/transcribe",
             "meta_data": {"message_id": 20},
+            "webhook_custom_headers": _WEBHOOK_HEADERS,
         },
     )
 
@@ -103,6 +107,7 @@ async def test_promptic_execute_uses_toolkit_promptic_route() -> None:
         json={
             "input_variables": {"content": "text"},
             "meta_data": {"user_id": "user-1"},
+            "webhook_custom_headers": _WEBHOOK_HEADERS,
         },
     )
 
@@ -118,7 +123,11 @@ async def test_youtube_submit() -> None:
     assert result == {"uid": "yt-1"}
     client.post.assert_awaited_once_with(
         "/youtube",
-        json={"video_id": "abc", "user_id": "user-1"},
+        json={
+            "video_id": "abc",
+            "user_id": "user-1",
+            "webhook_custom_headers": _WEBHOOK_HEADERS,
+        },
     )
 
 

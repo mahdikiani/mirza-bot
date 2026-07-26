@@ -1,5 +1,6 @@
 """Extended coverage tests for redesigned bot modules."""
 
+
 from __future__ import annotations
 
 from collections.abc import AsyncGenerator
@@ -93,7 +94,10 @@ def _ctx(renderer: FakeRenderer) -> BotRuntimeContext:
         bot_name="bot",
         platform="telegram",
         renderer=renderer,
-        capabilities=PlatformCapabilities(max_text_chars=4096),
+        capabilities=PlatformCapabilities(
+            max_text_chars=4096,
+            supports_inline_query=True,
+        ),
     )
 
 
@@ -219,6 +223,7 @@ async def test_onboarding_create_bot_user_from_contact() -> None:
 @pytest.mark.asyncio
 async def test_onboarding_falls_back_locally_when_usso_unavailable() -> None:
     """Onboarding must not block the user when USSO is unreachable."""
+
     event = MessageEvent(
         platform="telegram",
         sender=Sender(id=556),
@@ -238,15 +243,14 @@ async def test_onboarding_falls_back_locally_when_usso_unavailable() -> None:
 
 
 @pytest.mark.asyncio
-async def test_media_flow_submit_url_webpage() -> None:
+async def test_media_flow_submit_url_webpage_not_async() -> None:
+    """Webpage is sync-Jina in urls.py; submit_url must not invent an async path."""
+
     event = MessageEvent(chat_id=1, message_id=2, sender=Sender(id=3))
-    with (
-        patch(
-            "apps.bots.common.media_flow.WebpageClient.submit",
-            AsyncMock(return_value={"uid": "wp-2"}),
-        ),
-        patch("apps.ai.pending_tasks.add", AsyncMock()) as add_mock,
-    ):
+    with patch(
+        "apps.bots.common.media_flow.WebpageClient.submit",
+        AsyncMock(return_value={"uid": "wp-2"}),
+    ) as submit_mock:
         uid = await media_flow.submit_url(
             event=event,
             bot_name="bot",
@@ -254,8 +258,21 @@ async def test_media_flow_submit_url_webpage() -> None:
             response_message_id=2,
             user_id="u1",
         )
-    assert uid == "wp-2"
-    add_mock.assert_awaited_once()
+    assert uid is None
+    submit_mock.assert_not_awaited()
+
+
+@pytest.mark.asyncio
+async def test_media_flow_submit_url_gdrive_refused() -> None:
+    event = MessageEvent(chat_id=1, message_id=2, sender=Sender(id=3))
+    uid = await media_flow.submit_url(
+        event=event,
+        bot_name="bot",
+        url="https://drive.google.com/file/d/abc/view",
+        response_message_id=2,
+        user_id="u1",
+    )
+    assert uid is None
 
 
 @pytest.mark.asyncio
@@ -294,7 +311,7 @@ async def test_handler_txt_file_inline_extraction() -> None:
         file=FileRef(file_id="f1", file_name="notes.txt"),
     )
     with patch(
-        "apps.bots.common.handler.require_verified_user",
+        "apps.bots.common.handlers.messages.require_verified_user",
         AsyncMock(return_value=("usso-1", _verified_user())),
     ):
         await handle_message_event(event, _ctx(renderer))
@@ -312,7 +329,7 @@ async def test_handler_url_message_dispatches() -> None:
     )
     with (
         patch(
-            "apps.bots.common.handler.require_verified_user",
+            "apps.bots.common.handlers.messages.require_verified_user",
             AsyncMock(return_value=("usso-1", _verified_user())),
         ),
         patch(
@@ -332,11 +349,11 @@ async def test_handler_balance_command() -> None:
     )
     with (
         patch(
-            "apps.bots.common.handler.require_verified_user",
+            "apps.bots.common.handlers.messages.require_verified_user",
             AsyncMock(return_value=("usso-1", _verified_user())),
         ),
         patch(
-            "apps.bots.common.handler.billing.fetch_balance",
+            "apps.bots.common.handlers.menu.billing.fetch_balance",
             AsyncMock(return_value="balance: 10"),
         ),
     ):
@@ -349,7 +366,7 @@ async def test_handle_contact_event_success() -> None:
     renderer = FakeRenderer()
     event = MessageEvent(chat_id=1, message_id=5, sender=Sender(id=42))
     with patch(
-        "apps.bots.common.handler.get_or_create_bot_user_from_contact",
+        "apps.bots.common.handlers.contact.get_or_create_bot_user_from_contact",
         AsyncMock(),
     ):
         await handle_contact_event(
@@ -366,7 +383,7 @@ async def test_handle_contact_event_onboarding_failure_notifies_user() -> None:
     renderer = FakeRenderer()
     event = MessageEvent(chat_id=1, message_id=5, sender=Sender(id=42))
     with patch(
-        "apps.bots.common.handler.get_or_create_bot_user_from_contact",
+        "apps.bots.common.handlers.contact.get_or_create_bot_user_from_contact",
         AsyncMock(side_effect=Exception("usso unreachable")),
     ):
         await handle_contact_event(
@@ -421,20 +438,27 @@ async def test_deliver_result_uses_renderer_registry() -> None:
 
     renderer = AsyncMock()
     register_renderer("bot-a", renderer)
+    meta = {
+        "chat_id": 1,
+        "bot_name": "bot-a",
+        "message_id": 2,
+        "user_id": "u1",
+        "locale": "fa",
+        "reply_to_message_id": 1,
+    }
     payload = TaskWebhookPayload(
         uid="ok-1",
         task_status="completed",
         result="ocr text",
-        meta_data={
-            "chat_id": 1,
-            "bot_name": "bot-a",
-            "message_id": 2,
-            "user_id": "u1",
-            "locale": "fa",
-            "reply_to_message_id": 1,
-        },
+        meta_data={},
     )
-    with patch("apps.ai.pending_tasks.remove", AsyncMock()):
+    with (
+        patch("apps.ai.pending_tasks.remove", AsyncMock()),
+        patch(
+            "apps.ai.pending_tasks.get",
+            AsyncMock(return_value={"meta_data": meta}),
+        ),
+    ):
         await _deliver_result(payload, "document")
     renderer.send_inline_text.assert_awaited()
 
@@ -442,32 +466,37 @@ async def test_deliver_result_uses_renderer_registry() -> None:
 @pytest.mark.asyncio
 async def test_deliver_result_routes_minutes_action_to_docx_first() -> None:
     """
-    The minutes action must go through deliver_docx_first_result, not
-    the normal Markdown deliver_md_result path every other action uses."""
+    Route minutes action through deliver_docx_first_result.
+
+    Other actions use the normal Markdown deliver_md_result path.
+    """
     from apps.ai.routes import TaskWebhookPayload, _deliver_result
     from apps.bots.common.renderer_registry import register_renderer
 
     renderer = AsyncMock()
     register_renderer("bot-minutes", renderer)
+    meta = {
+        "chat_id": 1,
+        "bot_name": "bot-minutes",
+        "message_id": 2,
+        "user_id": "u1",
+        "locale": "fa",
+        "reply_to_message_id": 1,
+        "action_name": "minutes",
+    }
     payload = TaskWebhookPayload(
         uid="ok-minutes",
         task_status="completed",
         result="# صورت جلسه\nمتن",
-        meta_data={
-            "chat_id": 1,
-            "bot_name": "bot-minutes",
-            "message_id": 2,
-            "user_id": "u1",
-            "locale": "fa",
-            "reply_to_message_id": 1,
-            "action_name": "minutes",
-        },
+        meta_data={},
     )
     with (
         patch("apps.ai.pending_tasks.remove", AsyncMock()),
         patch(
-            "apps.ai.routes.deliver_docx_first_result", AsyncMock()
-        ) as docx_first,
+            "apps.ai.pending_tasks.get",
+            AsyncMock(return_value={"meta_data": meta}),
+        ),
+        patch("apps.ai.routes.deliver_docx_first_result", AsyncMock()) as docx_first,
         patch("apps.ai.routes.deliver_md_result", AsyncMock()) as md_result,
     ):
         await _deliver_result(payload, "promptic")
@@ -483,13 +512,20 @@ async def test_notify_task_error_insufficient_credits_renderer() -> None:
 
     renderer = AsyncMock()
     register_renderer("bot-b", renderer)
+    meta = {"chat_id": 1, "bot_name": "bot-b", "message_id": 2, "locale": "fa"}
     payload = TaskWebhookPayload(
         uid="err-1",
         task_status="error",
-        meta_data={"chat_id": 1, "bot_name": "bot-b", "message_id": 2, "locale": "fa"},
+        meta_data={},
         error="Insufficient credits",
     )
-    with patch("apps.ai.pending_tasks.remove", AsyncMock()):
+    with (
+        patch("apps.ai.pending_tasks.remove", AsyncMock()),
+        patch(
+            "apps.ai.pending_tasks.get",
+            AsyncMock(return_value={"meta_data": meta}),
+        ),
+    ):
         await _notify_task_error(payload)
     renderer.edit_message.assert_awaited_once()
 
@@ -564,9 +600,11 @@ async def test_deliver_md_result_long_text_uploads_file() -> None:
 @pytest.mark.asyncio
 async def test_deliver_md_result_caches_raw_markdown_for_convert_buttons() -> None:
     """
-    Regression: convert-to-Word/Markdown buttons read this cache back
-    (see apps/ai/result_content_cache.py + callbacks._get_content) since
-    Telegram strips '#'/'**' syntax once a message is sent as rich text."""
+    Cache raw Markdown for convert-to-Word/Markdown buttons.
+
+    See apps/ai/result_content_cache.py + callbacks._get_content — Telegram
+    strips '#'/'**' syntax once a message is sent as rich text.
+    """
     from apps.bots.common.delivery import deliver_md_result
 
     renderer = AsyncMock()
@@ -590,6 +628,7 @@ async def test_deliver_md_result_caches_raw_markdown_for_convert_buttons() -> No
 @pytest.mark.asyncio
 async def test_deliver_md_result_long_text_upload_keeps_raw_markdown() -> None:
     """The uploaded .md file must stay real Markdown, not HTML-converted."""
+
     from apps.bots.common import media_flow
     from apps.bots.common.delivery import deliver_md_result
 
@@ -654,11 +693,11 @@ async def test_handler_promptic_action_callback() -> None:
     )
     with (
         patch(
-            "apps.bots.common.callbacks.require_verified_callback",
+            "apps.bots.common.callbacks.chat.require_verified_callback",
             AsyncMock(return_value=("usso-1", _verified_user())),
         ),
         patch(
-            "apps.bots.common.callbacks.actions.run_promptic_action",
+            "apps.bots.common.callbacks.chat.actions.run_promptic_action",
             AsyncMock(),
         ) as run_action,
     ):
@@ -679,7 +718,7 @@ async def test_handler_settings_callback() -> None:
         sender=Sender(id="tg1"),
     )
     with patch(
-        "apps.bots.common.callbacks.settings.set_preferred_language",
+        "apps.bots.common.callbacks.prefs.settings.set_preferred_language",
         AsyncMock(),
     ):
         await handle_callback_event(event, _ctx(renderer))
@@ -699,7 +738,7 @@ async def test_handler_products_page_callback() -> None:
         sender=Sender(id="tg1"),
     )
     with patch(
-        "apps.bots.common.callbacks.billing.fetch_products_page",
+        "apps.bots.common.callbacks.billing.billing.fetch_products_page",
         AsyncMock(
             return_value=("page 2", [{"uid": "p1", "name": "Pack", "unit_price": 5}], 6)
         ),
@@ -710,8 +749,10 @@ async def test_handler_products_page_callback() -> None:
 
 @pytest.mark.asyncio
 async def test_handler_inline_query() -> None:
+    from apps.bots.common.auth_gate import VerifiedUser, VerifiedUserStatus
     from apps.bots.common.events import InlineQueryEvent
     from apps.bots.common.handler import handle_inline_query_event
+    from apps.bots.common.models import BotUser
 
     renderer = FakeRenderer()
     renderer.answer_inline_query = AsyncMock()
@@ -721,9 +762,23 @@ async def test_handler_inline_query() -> None:
         text="what is ai?",
         sender=Sender(id=1),
     )
-    with patch(
-        "apps.bots.common.handler.CompletionClient.complete",
-        AsyncMock(return_value="answer"),
+    verified = VerifiedUser(
+        usso_uid="u1",
+        bot_user=BotUser(user_id="u1", telegram_user_id="1", platform_user_id="1"),
+    )
+    with (
+        patch(
+            "apps.bots.common.handlers.inline.resolve_verified_user",
+            AsyncMock(return_value=(VerifiedUserStatus.ok, verified)),
+        ),
+        patch(
+            "apps.bots.common.handlers.inline.get_user_locale",
+            AsyncMock(return_value="fa"),
+        ),
+        patch(
+            "apps.bots.common.handlers.inline.CompletionClient.complete",
+            AsyncMock(return_value="answer"),
+        ),
     ):
         await handle_inline_query_event(event, _ctx(renderer))
     renderer.answer_inline_query.assert_awaited_once()
@@ -761,11 +816,11 @@ async def test_handler_buy_product_callback() -> None:
     )
     with (
         patch(
-            "apps.bots.common.callbacks.require_verified_callback",
+            "apps.bots.common.callbacks.billing.require_verified_callback",
             AsyncMock(return_value=("usso-1", _verified_user())),
         ),
         patch(
-            "apps.bots.common.callbacks.billing.purchase_product",
+            "apps.bots.common.callbacks.billing.billing.purchase_product",
             AsyncMock(return_value="https://pay.test/1"),
         ),
     ):
@@ -810,7 +865,7 @@ async def test_handler_docx_file_added_to_chat() -> None:
 
     with (
         patch(
-            "apps.bots.common.handler.require_verified_user",
+            "apps.bots.common.handlers.messages.require_verified_user",
             AsyncMock(return_value=("usso-1", _verified_user())),
         ),
         patch(
@@ -849,8 +904,10 @@ async def test_deliver_md_result_upload_failure_still_sends() -> None:
 @pytest.mark.asyncio
 async def test_deliver_docx_first_result_sends_docx_and_caches_markdown() -> None:
     """
-    Minutes must deliver a ready .docx directly (not Markdown text), but
-    still cache the raw Markdown so convert:docx/markdown buttons work."""
+    Deliver minutes as .docx and still cache raw Markdown.
+
+    Convert:docx/markdown buttons need the cached Markdown.
+    """
     from apps.bots.common.delivery import deliver_docx_first_result
 
     renderer = AsyncMock()
@@ -876,9 +933,7 @@ async def test_deliver_docx_first_result_sends_docx_and_caches_markdown() -> Non
             docx_title="صورت جلسه",
         )
 
-    convert_mock.assert_awaited_once_with(
-        "# صورت جلسه\n**تصمیم**", title="صورت جلسه"
-    )
+    convert_mock.assert_awaited_once_with("# صورت جلسه\n**تصمیم**", title="صورت جلسه")
     renderer.send_document.assert_awaited_once()
     _, kwargs = renderer.send_document.call_args
     assert kwargs["file_data"] == b"docxbytes"
@@ -888,10 +943,14 @@ async def test_deliver_docx_first_result_sends_docx_and_caches_markdown() -> Non
 
 
 @pytest.mark.asyncio
-async def test_deliver_docx_first_result_falls_back_to_markdown_on_conversion_error() -> None:
+async def test_deliver_docx_first_result_falls_back_to_markdown_on_conversion_error() -> (
+    None
+):
     """
-    A toolkit hiccup during DOCX conversion must not swallow the result —
-    fall back to the normal Markdown delivery instead."""
+    Fall back to Markdown delivery when DOCX conversion fails.
+
+    A toolkit hiccup must not swallow the result.
+    """
     from apps.bots.common.delivery import deliver_docx_first_result
 
     renderer = AsyncMock()
@@ -927,7 +986,7 @@ async def test_handler_multi_link_webpages_only() -> None:
     )
     with (
         patch(
-            "apps.bots.common.handler.require_verified_user",
+            "apps.bots.common.handlers.messages.require_verified_user",
             AsyncMock(return_value=("usso-1", _verified_user())),
         ),
         patch(

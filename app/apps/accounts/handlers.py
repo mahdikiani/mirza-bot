@@ -21,7 +21,8 @@ USSO_USER_CACHE_TTL = Settings.usso_user_cache_ttl_seconds
 
 def usso_identifier_type_for_platform(platform: str) -> str:
     """Map messenger platform to USSO identifier type."""
-    _ = platform
+    if platform == "bale":
+        return "bale_id"
     return "telegram_id"
 
 

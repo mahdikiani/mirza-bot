@@ -1,5 +1,8 @@
-"""Convert LLM-style Markdown to the restricted HTML subset Telegram/Bale
-``parse_mode="HTML"`` actually supports.
+"""
+Convert LLM-style Markdown to the restricted HTML.
+
+Convert LLM-style Markdown for Telegram/Bale's ``parse_mode="HTML"``
+actually supports.
 
 Both delivery renderers (Telethon for Telegram, telebot for Bale) send
 messages with HTML parse mode. AI results (OCR, transcription summaries,
@@ -26,7 +29,9 @@ import re
 _CODE_BLOCK_RE = re.compile(r"```(?:[^\n`]*\n)?(.*?)```", re.DOTALL)
 _INLINE_CODE_RE = re.compile(r"`([^`\n]+)`")
 _BOLD_RE = re.compile(r"\*\*(?!\s)(.+?)(?<!\s)\*\*|__(?!\s)(.+?)(?<!\s)__")
-_ITALIC_RE = re.compile(r"(?<!\*)\*(?!\s)(.+?)(?<!\s)\*(?!\*)|(?<!_)_(?!\s)(.+?)(?<!\s)_(?!_)")
+_ITALIC_RE = re.compile(
+    r"(?<!\*)\*(?!\s)(.+?)(?<!\s)\*(?!\*)|(?<!_)_(?!\s)(.+?)(?<!\s)_(?!_)"
+)
 _STRIKE_RE = re.compile(r"~~(.+?)~~")
 _LINK_RE = re.compile(r"\[([^\]\n]+)\]\((https?://[^\s)]+)\)")
 
@@ -45,7 +50,9 @@ def _escape_html(text: str) -> str:
 def _format_inline(content: str) -> str:
     """Escape HTML then apply inline bold/italic/strike/link markup."""
     escaped = _escape_html(content)
-    escaped = _LINK_RE.sub(lambda m: f'<a href="{m.group(2)}">{m.group(1)}</a>', escaped)
+    escaped = _LINK_RE.sub(
+        lambda m: f'<a href="{m.group(2)}">{m.group(1)}</a>', escaped
+    )
     escaped = _BOLD_RE.sub(lambda m: f"<b>{m.group(1) or m.group(2)}</b>", escaped)
     escaped = _ITALIC_RE.sub(lambda m: f"<i>{m.group(1) or m.group(2)}</i>", escaped)
     escaped = _STRIKE_RE.sub(lambda m: f"<s>{m.group(1)}</s>", escaped)
@@ -53,7 +60,8 @@ def _format_inline(content: str) -> str:
 
 
 def markdown_to_telegram_html(text: str) -> str:
-    """Convert Markdown to Telegram-safe HTML for inline chat delivery.
+    """
+    Convert Markdown to Telegram-safe HTML for inline chat delivery.
 
     Kept deliberately conservative: unrecognized syntax is left as literal
     (already-escaped) text rather than guessed at, and any tag we didn't

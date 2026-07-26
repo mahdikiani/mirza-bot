@@ -61,8 +61,49 @@ class TestTelethonGatewayNormalize:
         assert normalized.text == "hello"
         assert normalized.chat_id == 100
         assert normalized.message_id == 11
+        assert normalized.chat_type == "supergroup"
         assert normalized.sender is not None
         assert normalized.sender.id == 5
+
+    def test_normalize_basic_group_chat_type(self) -> None:
+        """Basic Telethon Chat (title, no megagroup) must not stay private."""
+        gateway = TelethonGateway("bot", 1, "hash", "token")
+        chat = SimpleNamespace(id=200, title="Friends")
+        message = SimpleNamespace(
+            id=1,
+            text="hi",
+            file=None,
+            sender=SimpleNamespace(
+                id=9, bot=False, username=None, first_name="A", last_name=None
+            ),
+            reply_to_msg_id=None,
+            reply_to=None,
+        )
+        event = SimpleNamespace(
+            message=message, chat=chat, chat_id=200, id=1, sender_id=9
+        )
+        normalized = gateway._normalize_message(event)
+        assert normalized.chat_type == "group"
+
+    def test_normalize_reply_meta_without_false_is_bot_reply(self) -> None:
+        gateway = TelethonGateway("bot", 1, "hash", "token")
+        chat = SimpleNamespace(id=100, megagroup=True, broadcast=False)
+        message = SimpleNamespace(
+            id=12,
+            text="reply",
+            file=None,
+            sender=SimpleNamespace(
+                id=5, bot=False, username=None, first_name="A", last_name=None
+            ),
+            reply_to_msg_id=7,
+            reply_to=SimpleNamespace(forum_topic=False),
+        )
+        event = SimpleNamespace(
+            message=message, chat=chat, chat_id=100, id=12, sender_id=5
+        )
+        normalized = gateway._normalize_message(event)
+        assert normalized.reply_to is not None
+        assert "is_bot_reply" not in normalized.reply_to.metadata
 
     def test_normalize_callback_data(self) -> None:
         gateway = TelethonGateway("bot", 1, "hash", "token")

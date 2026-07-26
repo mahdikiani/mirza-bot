@@ -21,12 +21,12 @@ def _resolve_listen_port() -> int:
     s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
     s.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
     try:
-        s.bind(("0.0.0.0", preferred))  # noqa: S104
+        s.bind(("0.0.0.0", preferred))  # ruff:ignore[hardcoded-bind-all-interfaces]
     except OSError:
         s.close()
         s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
         s.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
-        s.bind(("0.0.0.0", 0))  # noqa: S104
+        s.bind(("0.0.0.0", 0))  # ruff:ignore[hardcoded-bind-all-interfaces]
         chosen: int = s.getsockname()[1]
         s.close()
         logging.warning(
@@ -52,7 +52,7 @@ async def main() -> None:
     logging.info("Uvicorn listening on port %s", port)
     config = uvicorn.Config(
         f"{module}:app",
-        host="0.0.0.0",  # noqa: S104
+        host="0.0.0.0",  # ruff:ignore[hardcoded-bind-all-interfaces]
         port=port,
         access_log=True,
         workers=1,

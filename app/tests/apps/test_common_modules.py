@@ -1,5 +1,6 @@
 """Tests for apps/bots/common modules."""
 
+
 from __future__ import annotations
 
 from unittest.mock import AsyncMock, patch
@@ -40,6 +41,9 @@ class TestLinkRouter:
 
     def test_is_media_file_url(self) -> None:
         assert link_router.is_media_file_url("https://x.com/a.pdf")
+        assert not link_router.is_media_file_url(
+            "https://drive.google.com/file/d/abc/view"
+        )
         assert link_router.is_audio_video_url("https://x.com/a.mp3")
 
 
@@ -66,6 +70,20 @@ class TestContext:
             reply_to=MessageRef(message_id=5, metadata={"sender_id": 42}),
         )
         assert context.should_respond_in_group(event, "mybot", 42)
+
+    def test_should_not_respond_group_reply_to_other_user(self) -> None:
+        event = MessageEvent(
+            chat_type="group",
+            text="hello",
+            reply_to=MessageRef(message_id=5, metadata={"sender_id": 7}),
+        )
+        assert not context.should_respond_in_group(event, "mybot", 42)
+
+    def test_is_media_file_url_excludes_gdrive(self) -> None:
+        assert not link_router.is_media_file_url(
+            "https://drive.google.com/file/d/abc/view"
+        )
+        assert link_router.is_media_file_url("https://x.com/a.pdf")
 
     @pytest.mark.asyncio
     async def test_chat_completion_returns_error_on_failure(self) -> None:
@@ -176,6 +194,38 @@ class TestSettings:
         assert updated is not None
         assert updated.preferred_language == "en"
 
+    def test_is_allowed_model(self) -> None:
+        assert settings.is_allowed_model(settings.DEFAULT_MODEL)
+        assert not settings.is_allowed_model("evil/not-a-model")
+
+    @pytest.mark.asyncio
+    async def test_set_preferred_model_rejects_non_allowlisted(self) -> None:
+        user = BotUser(
+            user_id="u-model",
+            platform_user_id="tg-model",
+            telegram_user_id="tg-model",
+            preferred_model=settings.DEFAULT_MODEL,
+            phone_verified=True,
+        )
+        await user.save()
+        result = await settings.set_preferred_model("tg-model", "evil/not-a-model")
+        assert result is None
+        refreshed = await onboarding.get_bot_user("tg-model")
+        assert refreshed is not None
+        assert refreshed.preferred_model == settings.DEFAULT_MODEL
+
+    @pytest.mark.asyncio
+    async def test_get_user_model_falls_back_when_not_allowlisted(self) -> None:
+        user = BotUser(
+            user_id="u-model2",
+            platform_user_id="tg-model2",
+            telegram_user_id="tg-model2",
+            preferred_model="legacy/disallowed-model",
+            phone_verified=True,
+        )
+        await user.save()
+        assert await settings.get_user_model("tg-model2") == settings.DEFAULT_MODEL
+
 
 class TestBilling:
     @pytest.mark.asyncio
@@ -236,9 +286,13 @@ class TestBilling:
 
 
 class TestSafeFilename:
-    """_safe_filename must strip characters that break strict URL validators
+    """
+    Require `_safe_filename` to strip URL-breaking characters.
+
+    Spaces and similar characters break strict URL validators
     (e.g. Soniox's audio_url pattern) once the media service embeds the raw
-    filename in a public URL path segment."""
+    filename in a public URL path segment.
+    """
 
     def test_strips_spaces_and_keeps_extension(self) -> None:
         name = media_flow._safe_filename(
@@ -327,7 +381,11 @@ class TestMediaFlow:
                 AsyncMock(),
             ) as add_mock,
         ):
-            uid = await media_flow.submit_youtube("vid", "u1", {"chat_id": 1})
+            uid = await media_flow.submit_youtube(
+                "https://youtu.be/abcdefghijk",
+                "u1",
+                {"chat_id": 1},
+            )
         assert uid == "yt-1"
         add_mock.assert_awaited_once()
 
@@ -409,7 +467,11 @@ class TestBale:
                 AsyncMock(),
             ) as handle_mock,
         ):
-            resp = await client.post("/bale/webhook/test_bot", json=payload)
+            resp = await client.post(
+                "/bale/webhook/test_bot",
+                json=payload,
+                headers={"x-api-key": "test-webhook-key"},
+            )
             if scheduled:
                 await scheduled[0]
         assert resp.status_code == 200
@@ -436,16 +498,21 @@ class TestWebhookErrors:
     async def test_notify_task_error(self) -> None:
         from apps.ai.routes import TaskWebhookPayload, _notify_task_error
 
+        meta = {"chat_id": 1, "bot_name": "b", "message_id": 2}
         payload = TaskWebhookPayload(
             uid="t1",
             task_status="error",
-            meta_data={"chat_id": 1, "bot_name": "b", "message_id": 2},
+            meta_data={},
             task_report="failed",
         )
         renderer = AsyncMock()
         with (
             patch("apps.ai.routes.get_renderer", return_value=renderer),
             patch("apps.ai.pending_tasks.remove", AsyncMock()),
+            patch(
+                "apps.ai.pending_tasks.get",
+                AsyncMock(return_value={"meta_data": meta}),
+            ),
         ):
             await _notify_task_error(payload)
         renderer.edit_message.assert_awaited_once()

@@ -1,0 +1,5 @@
+[run]
+source = apps,server,utils
+
+[report]
+fail_under = 85

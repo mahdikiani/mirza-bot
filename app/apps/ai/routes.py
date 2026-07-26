@@ -1,5 +1,6 @@
 """Webhook endpoints called by internal services when async tasks complete."""
 
+
 from __future__ import annotations
 
 import logging
@@ -51,62 +52,114 @@ async def _fetch_task_result(
     return None
 
 
-async def _deliver_result(payload: TaskWebhookPayload, content_type: str) -> None:
+async def _resolve_delivery_meta(payload: TaskWebhookPayload) -> dict:
+    """
+    Delivery routing uses pending-task meta only.
+
+    Missing pending meta for ``payload.uid`` rejects delivery — there is no
+    fallback to ``payload.meta_data`` (fail-closed).
+    """
     from apps.ai import pending_tasks
 
-    if payload.task_status == "error":
-        await _notify_task_error(payload)
-        return
-
-    if payload.task_status != "completed":
-        logger.warning("Task %s status=%s ignored", payload.uid, payload.task_status)
-        return
-
-    meta = payload.meta_data or {}
-    if not meta:
+    try:
         pending = await pending_tasks.get(payload.uid)
-        meta = pending.get("meta_data") if pending else {}
+    except Exception:
+        logger.exception("Failed to load pending meta for %s", payload.uid)
+        return {}
 
-    chat_id = meta.get("chat_id")
-    response_message_id = meta.get("message_id")
-    bot_name = meta.get("bot_name")
-    user_id = meta.get("user_id")
-    locale = meta.get("locale", "fa")
-    user_prompt = str(meta.get("user_prompt") or "").strip()
-
-    if not (chat_id and bot_name):
-        logger.error("Webhook missing chat_id/bot_name: %s", meta)
-        return
-
-    result = payload.result or ""
-    if not result:
-        result = await _fetch_task_result(payload, content_type) or ""
-    if not result:
-        logger.error("Webhook completed but empty result for %s", payload.uid)
-        return
-
-    renderer = get_renderer(str(bot_name))
-    if not renderer:
-        logger.error("No renderer registered for bot %s", bot_name)
-        return
-
-    if user_prompt:
-        from apps.bots.common.context import (
-            InsufficientCreditsError,
-            extracted_content_completion,
-            notify_admin_insufficient_credits,
+    if not pending:
+        logger.error(
+            "Webhook %s rejected: no pending meta (payload meta ignored)",
+            payload.uid,
         )
+        return {}
 
-        try:
-            result = await extracted_content_completion(
-                result,
-                user_prompt,
-                sender_id=meta.get("platform_user_id"),
-                locale=str(locale),
-            )
-        except InsufficientCreditsError:
-            await notify_admin_insufficient_credits(renderer, chat_id)
-            result = text("messages.insufficient_credits", locale=str(locale))
+    pending_meta = dict(pending.get("meta_data") or {})
+    if not pending_meta:
+        logger.error(
+            "Webhook %s rejected: pending record has empty meta_data",
+            payload.uid,
+        )
+    return pending_meta
+
+
+async def _empty_result_error(
+    payload: TaskWebhookPayload, meta: dict, locale: str
+) -> None:
+    await _notify_task_error(
+        TaskWebhookPayload(
+            uid=payload.uid,
+            task_status="error",
+            meta_data=meta,
+            task_report=text("messages.task_error", locale=str(locale)),
+        )
+    )
+
+
+async def _apply_user_prompt(
+    result: str,
+    *,
+    user_prompt: str,
+    meta: dict,
+    locale: str,
+    renderer: object,
+    chat_id: object,
+) -> str:
+    from apps.bots.common.context import (
+        InsufficientCreditsError,
+        extracted_content_completion,
+        notify_admin_insufficient_credits,
+    )
+
+    try:
+        return await extracted_content_completion(
+            result,
+            user_prompt,
+            sender_id=meta.get("platform_user_id") or meta.get("telegram_user_id"),
+            locale=str(locale),
+        )
+    except InsufficientCreditsError:
+        await notify_admin_insufficient_credits(renderer, chat_id)
+        return text("messages.insufficient_credits", locale=str(locale))
+
+
+async def _store_voice_delivery(
+    *,
+    meta: dict,
+    chat_id: object,
+    delivered_message_id: object,
+    result: str,
+    user_id: object,
+) -> None:
+    from apps.bots.common.context import store_message
+
+    await store_message(
+        platform=str(meta.get("platform") or "telegram"),
+        platform_chat_id=str(chat_id),
+        platform_message_id=str(delivered_message_id),
+        role="user",
+        content=result,
+        user_id=str(user_id),
+        reply_to_platform_message_id=meta.get("source_reply_to_message_id"),
+        content_type="voice",
+        meta_data={"source_message_id": meta.get("reply_to_message_id")},
+    )
+
+
+async def _deliver_completed_content(
+    *,
+    payload: TaskWebhookPayload,
+    content_type: str,
+    meta: dict,
+    renderer: object,
+    chat_id: object,
+    response_message_id: object,
+    result: str,
+    user_id: object,
+    locale: str,
+    user_prompt: str,
+) -> None:
+    from apps.ai import pending_tasks
 
     if content_type == "promptic" and meta.get("action_name") == "minutes":
         await deliver_docx_first_result(
@@ -144,29 +197,86 @@ async def _deliver_result(payload: TaskWebhookPayload, content_type: str) -> Non
         ),
     )
     if content_type == "voice" and delivered_message_id and user_id:
-        from apps.bots.common.context import store_message
-
-        await store_message(
-            platform=str(meta.get("platform") or "telegram"),
-            platform_chat_id=str(chat_id),
-            platform_message_id=str(delivered_message_id),
-            role="user",
-            content=result,
-            user_id=str(user_id),
-            reply_to_platform_message_id=meta.get("source_reply_to_message_id"),
-            content_type="voice",
-            meta_data={"source_message_id": meta.get("reply_to_message_id")},
+        await _store_voice_delivery(
+            meta=meta,
+            chat_id=chat_id,
+            delivered_message_id=delivered_message_id,
+            result=result,
+            user_id=user_id,
         )
     await pending_tasks.remove(payload.uid)
+
+
+async def _deliver_result(payload: TaskWebhookPayload, content_type: str) -> None:
+    from apps.ai import pending_tasks
+
+    if payload.task_status == "error":
+        await _notify_task_error(payload)
+        return
+
+    if payload.task_status != "completed":
+        logger.warning("Task %s status=%s ignored", payload.uid, payload.task_status)
+        return
+
+    meta = await _resolve_delivery_meta(payload)
+    chat_id = meta.get("chat_id")
+    response_message_id = meta.get("message_id")
+    bot_name = meta.get("bot_name")
+    user_id = meta.get("user_id")
+    locale = meta.get("locale", "fa")
+    user_prompt = str(meta.get("user_prompt") or "").strip()
+
+    if not (chat_id and bot_name):
+        logger.error("Webhook missing chat_id/bot_name for %s: %s", payload.uid, meta)
+        await pending_tasks.remove(payload.uid)
+        return
+
+    result = payload.result or ""
+    if not result:
+        result = await _fetch_task_result(payload, content_type) or ""
+    if not result:
+        logger.error("Webhook completed but empty result for %s", payload.uid)
+        await _empty_result_error(payload, meta, str(locale))
+        return
+
+    renderer = get_renderer(str(bot_name))
+    if not renderer:
+        logger.error("No renderer registered for bot %s", bot_name)
+        try:
+            await _empty_result_error(payload, meta, str(locale))
+        except Exception:
+            logger.exception("Failed to notify missing-renderer for %s", payload.uid)
+            await pending_tasks.remove(payload.uid)
+        return
+
+    if user_prompt:
+        result = await _apply_user_prompt(
+            result,
+            user_prompt=user_prompt,
+            meta=meta,
+            locale=str(locale),
+            renderer=renderer,
+            chat_id=chat_id,
+        )
+
+    await _deliver_completed_content(
+        payload=payload,
+        content_type=content_type,
+        meta=meta,
+        renderer=renderer,
+        chat_id=chat_id,
+        response_message_id=response_message_id,
+        result=result,
+        user_id=user_id,
+        locale=str(locale),
+        user_prompt=user_prompt,
+    )
 
 
 async def _notify_task_error(payload: TaskWebhookPayload) -> None:
     from apps.ai import pending_tasks
 
-    meta = payload.meta_data or {}
-    if not meta:
-        pending = await pending_tasks.get(payload.uid)
-        meta = pending.get("meta_data") if pending else {}
+    meta = await _resolve_delivery_meta(payload)
 
     chat_id = meta.get("chat_id")
     message_id = meta.get("message_id")

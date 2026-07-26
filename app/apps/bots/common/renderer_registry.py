@@ -16,7 +16,9 @@ class BotRenderer(Protocol):
         text_value: str,
         reply_to: int | str | None = None,
         reply_keyboard: ReplyKeyboard | None = None,
-    ) -> object | None: ...
+    ) -> object | None:
+        """Send a text message."""
+        ...
 
     async def edit_message(
         self,
@@ -24,9 +26,13 @@ class BotRenderer(Protocol):
         message_id: int | str,
         text: str | None = None,
         inline_keyboard: InlineKeyboard | None = None,
-    ) -> None: ...
+    ) -> None:
+        """Edit an existing message."""
+        ...
 
-    async def send_typing(self, chat_id: int | str) -> None: ...
+    async def send_typing(self, chat_id: int | str) -> None:
+        """Show typing indicator."""
+        ...
 
     async def send_document(
         self,
@@ -36,15 +42,19 @@ class BotRenderer(Protocol):
         caption: str | None = None,
         reply_to: int | str | None = None,
         inline_keyboard: InlineKeyboard | None = None,
-    ) -> object | None: ...
+    ) -> object | None:
+        """Send a document attachment."""
+        ...
 
-    async def delete_message(
-        self, chat_id: int | str, message_id: int | str
-    ) -> None: ...
+    async def delete_message(self, chat_id: int | str, message_id: int | str) -> None:
+        """Delete a chat message."""
+        ...
 
     async def download_document(
         self, chat_id: int | str, message_id: int | str
-    ) -> bytes | None: ...
+    ) -> bytes | None:
+        """Download a document by message id."""
+        ...
 
 
 _renderers: dict[str, BotRenderer] = {}

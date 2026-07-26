@@ -32,9 +32,7 @@ class TestPollerOnce:
         bot.bot_type = "bale"
         bot.process_new_updates = AsyncMock()
 
-        with patch(
-            "apps.bots.runtime.poller._process_updates", MagicMock()
-        ) as process:
+        with patch("apps.bots.runtime.poller._process_updates", MagicMock()) as process:
             await poller._poll_once(bot)
 
         bot.get_updates.assert_awaited_once()
@@ -50,9 +48,7 @@ class TestPollerOnce:
         bot.get_updates = AsyncMock(return_value=[update])
         bot.process_new_updates = AsyncMock()
 
-        with patch(
-            "apps.bots.runtime.poller._process_updates", MagicMock()
-        ) as process:
+        with patch("apps.bots.runtime.poller._process_updates", MagicMock()) as process:
             await poller._poll_once(bot)
 
         process.assert_called_once_with(bot, [update])
@@ -111,7 +107,11 @@ class TestAiWebhooks:
     ) -> None:
         payload = {"uid": "ocr-task-1", "task_status": "completed", "result": "text"}
         with patch("apps.ai.routes._deliver_result", AsyncMock()):
-            resp = await client.post("/ai/ocr/webhook/", json=payload)
+            resp = await client.post(
+                "/ai/ocr/webhook/",
+                json=payload,
+                headers={"x-api-key": "test-webhook-key"},
+            )
         assert resp.status_code == 200
         assert resp.json() == {"status": "accepted"}
 
@@ -121,7 +121,11 @@ class TestAiWebhooks:
     ) -> None:
         payload = {"uid": "tr-task-1", "task_status": "completed", "result": "text"}
         with patch("apps.ai.routes._deliver_result", AsyncMock()):
-            resp = await client.post("/ai/transcribe/webhook/", json=payload)
+            resp = await client.post(
+                "/ai/transcribe/webhook/",
+                json=payload,
+                headers={"x-api-key": "test-webhook-key"},
+            )
         assert resp.status_code == 200
         assert resp.json() == {"status": "accepted"}
 
@@ -147,8 +151,12 @@ class TestAiWebhooks:
             uid="ocr-2", task_status="completed", result="text"
         )
 
-        with patch("apps.ai.pending_tasks.get", AsyncMock(return_value={})):
+        with (
+            patch("apps.ai.pending_tasks.get", AsyncMock(return_value={})),
+            patch("apps.ai.pending_tasks.remove", AsyncMock()) as remove_mock,
+        ):
             await _process_ocr_webhook(payload)
+        remove_mock.assert_awaited_once()
 
     @pytest.mark.asyncio
     async def test_ocr_webhook_completes_full_flow(self) -> None:
@@ -160,7 +168,7 @@ class TestAiWebhooks:
             "user_id": "u1",
         }
         payload = TaskWebhookPayload(
-            uid="ocr-3", task_status="completed", meta_data=meta, result="ocr text"
+            uid="ocr-3", task_status="completed", meta_data={}, result="ocr text"
         )
         renderer = AsyncMock()
 
@@ -168,6 +176,10 @@ class TestAiWebhooks:
             patch("apps.ai.routes.get_renderer", return_value=renderer),
             patch("apps.ai.routes.deliver_md_result", AsyncMock()) as deliver_mock,
             patch("apps.ai.pending_tasks.remove", AsyncMock()),
+            patch(
+                "apps.ai.pending_tasks.get",
+                AsyncMock(return_value={"meta_data": meta}),
+            ),
         ):
             await _process_ocr_webhook(payload)
 
@@ -176,9 +188,7 @@ class TestAiWebhooks:
     @pytest.mark.asyncio
     async def test_ocr_webhook_fetches_result_when_missing(self) -> None:
         meta = {"chat_id": 100, "bot_name": "test_bot", "message_id": 55}
-        payload = TaskWebhookPayload(
-            uid="ocr-4", task_status="completed", meta_data=meta
-        )
+        payload = TaskWebhookPayload(uid="ocr-4", task_status="completed")
         renderer = AsyncMock()
 
         with (
@@ -189,6 +199,10 @@ class TestAiWebhooks:
             ),
             patch("apps.ai.routes.deliver_md_result", AsyncMock()) as deliver_mock,
             patch("apps.ai.pending_tasks.remove", AsyncMock()),
+            patch(
+                "apps.ai.pending_tasks.get",
+                AsyncMock(return_value={"meta_data": meta}),
+            ),
         ):
             await _process_ocr_webhook(payload)
 
@@ -197,40 +211,50 @@ class TestAiWebhooks:
     @pytest.mark.asyncio
     async def test_ocr_webhook_handles_result_fetch_failure(self) -> None:
         meta = {"chat_id": 100, "bot_name": "test_bot", "message_id": 55}
-        payload = TaskWebhookPayload(
-            uid="ocr-5", task_status="completed", meta_data=meta
-        )
+        payload = TaskWebhookPayload(uid="ocr-5", task_status="completed")
+        renderer = AsyncMock()
 
         with (
-            patch("apps.ai.routes.get_renderer", return_value=AsyncMock()),
+            patch("apps.ai.routes.get_renderer", return_value=renderer),
             patch(
                 "apps.ai.clients.OCRClient.get_result",
                 AsyncMock(side_effect=Exception("API error")),
             ),
             patch("apps.ai.routes.deliver_md_result", AsyncMock()) as deliver_mock,
+            patch(
+                "apps.ai.pending_tasks.get",
+                AsyncMock(return_value={"meta_data": meta}),
+            ),
+            patch("apps.ai.pending_tasks.remove", AsyncMock()),
         ):
             await _process_ocr_webhook(payload)
 
         deliver_mock.assert_not_awaited()
+        renderer.edit_message.assert_awaited()
 
     @pytest.mark.asyncio
     async def test_transcribe_webhook_handles_result_fetch_failure(self) -> None:
         meta = {"chat_id": 200, "bot_name": "test_bot", "message_id": 66}
-        payload = TaskWebhookPayload(
-            uid="tr-5", task_status="completed", meta_data=meta
-        )
+        payload = TaskWebhookPayload(uid="tr-5", task_status="completed")
+        renderer = AsyncMock()
 
         with (
-            patch("apps.ai.routes.get_renderer", return_value=AsyncMock()),
+            patch("apps.ai.routes.get_renderer", return_value=renderer),
             patch(
                 "apps.ai.clients.TranscribeClient.get_result",
                 AsyncMock(side_effect=Exception("API error")),
             ),
             patch("apps.ai.routes.deliver_md_result", AsyncMock()) as deliver_mock,
+            patch(
+                "apps.ai.pending_tasks.get",
+                AsyncMock(return_value={"meta_data": meta}),
+            ),
+            patch("apps.ai.pending_tasks.remove", AsyncMock()),
         ):
             await _process_transcribe_webhook(payload)
 
         deliver_mock.assert_not_awaited()
+        renderer.edit_message.assert_awaited()
 
     @pytest.mark.asyncio
     async def test_ocr_webhook_skips_when_no_renderer(self) -> None:
@@ -241,13 +265,76 @@ class TestAiWebhooks:
             "user_id": "u1",
         }
         payload = TaskWebhookPayload(
-            uid="ocr-6", task_status="completed", meta_data=meta, result="text"
+            uid="ocr-6", task_status="completed", result="text"
         )
 
         with (
             patch("apps.ai.routes.get_renderer", return_value=None),
             patch("apps.ai.routes.deliver_md_result", AsyncMock()) as deliver_mock,
+            patch(
+                "apps.ai.pending_tasks.get",
+                AsyncMock(return_value={"meta_data": meta}),
+            ),
+            patch("apps.ai.pending_tasks.remove", AsyncMock()) as remove_mock,
         ):
             await _process_ocr_webhook(payload)
 
         deliver_mock.assert_not_awaited()
+        remove_mock.assert_awaited()
+
+    @pytest.mark.asyncio
+    async def test_ocr_webhook_uses_pending_meta_only(self) -> None:
+        payload_meta = {"chat_id": 1, "bot_name": "wrong", "message_id": 1}
+        pending_meta = {
+            "chat_id": 100,
+            "bot_name": "test_bot",
+            "message_id": 55,
+            "user_id": "u1",
+        }
+        payload = TaskWebhookPayload(
+            uid="ocr-7",
+            task_status="completed",
+            meta_data=payload_meta,
+            result="ocr text",
+        )
+        renderer = AsyncMock()
+
+        with (
+            patch("apps.ai.routes.get_renderer", return_value=renderer),
+            patch("apps.ai.routes.deliver_md_result", AsyncMock()) as deliver_mock,
+            patch(
+                "apps.ai.pending_tasks.get",
+                AsyncMock(return_value={"meta_data": pending_meta}),
+            ),
+            patch("apps.ai.pending_tasks.remove", AsyncMock()),
+        ):
+            await _process_ocr_webhook(payload)
+
+        deliver_mock.assert_awaited_once()
+        assert deliver_mock.await_args.kwargs["chat_id"] == 100
+
+    @pytest.mark.asyncio
+    async def test_ocr_webhook_rejects_payload_meta_without_pending(self) -> None:
+        payload_meta = {
+            "chat_id": 100,
+            "bot_name": "test_bot",
+            "message_id": 55,
+            "user_id": "u1",
+        }
+        payload = TaskWebhookPayload(
+            uid="ocr-8",
+            task_status="completed",
+            meta_data=payload_meta,
+            result="ocr text",
+        )
+
+        with (
+            patch("apps.ai.routes.get_renderer", return_value=AsyncMock()),
+            patch("apps.ai.routes.deliver_md_result", AsyncMock()) as deliver_mock,
+            patch("apps.ai.pending_tasks.get", AsyncMock(return_value=None)),
+            patch("apps.ai.pending_tasks.remove", AsyncMock()) as remove_mock,
+        ):
+            await _process_ocr_webhook(payload)
+
+        deliver_mock.assert_not_awaited()
+        remove_mock.assert_awaited_once()

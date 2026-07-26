@@ -110,7 +110,6 @@ def toolkit_task_meta(
         "user_id": user_id,
         "locale": locale,
         "platform_user_id": str(event.sender.id) if event.sender else None,
-        "telegram_user_id": str(event.sender.id) if event.sender else None,
         "file_name_hint": file_name_hint,
         "user_prompt": user_prompt,
     }
@@ -273,10 +272,15 @@ async def submit_url(
     )
     kind = classify_url(url)
 
+    if kind == LinkKind.gdrive:
+        # No real Google Drive import path yet — callers must fail-fast to the user.
+        logger.warning("GDrive URL rejected (unsupported): %s", url)
+        return None
+
     if kind == LinkKind.youtube:
         return await submit_youtube(url, user_id, meta)
 
-    if kind in {LinkKind.file, LinkKind.gdrive}:
+    if kind == LinkKind.file:
         if is_audio_video_url(url):
             task_uid = await submit_transcribe_url(url, user_id, meta)
             task_type = "transcribe"
@@ -294,17 +298,10 @@ async def submit_url(
             )
         return task_uid
 
-    task_uid = await submit_webpage(url, user_id, meta)
-    if task_uid:
-        from apps.ai.pending_tasks import add as add_pending_task
-
-        await add_pending_task(
-            task_uid=task_uid,
-            task_type="webpage",
-            user_id=user_id,
-            meta_data=meta,
-        )
-    return task_uid
+    # Webpage URLs are handled sync via Jina in urls.handle_urls_message.
+    # Keep WebpageClient/submit_webpage available for webhook/poller only.
+    logger.warning("submit_url called for non-async kind %s: %s", kind, url)
+    return None
 
 
 async def save_artifact(

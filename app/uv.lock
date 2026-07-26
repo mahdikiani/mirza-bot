@@ -531,7 +531,7 @@ wheels = [
 
 [[package]]
 name = "fastapi-mongo-base"
-version = "1.5.7"
+version = "1.8.0"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
     { name = "beanie" },
@@ -545,9 +545,9 @@ dependencies = [
     { name = "uuid6" },
     { name = "uvicorn", extra = ["standard"] },
 ]
-sdist = { url = "https://files.pythonhosted.org/packages/ce/3a/705b8d494e8b0990d9488c96162882a3ebe966b9f414caf0f0d32bab2add/fastapi_mongo_base-1.5.7.tar.gz", hash = "sha256:c73a40c2ffeb13670c8645f5dce02035cf511db31af8093cefe16035f3437ba0", size = 90250, upload-time = "2026-07-12T06:50:19.123Z" }
+sdist = { url = "https://files.pythonhosted.org/packages/cc/37/0843300b6744d5c8078aec02a7f46a5452b5ff2368abace804e4dc306092/fastapi_mongo_base-1.8.0.tar.gz", hash = "sha256:8280c327a6b89f5a1fa12924f110c55299270edf023ea0492cf15c553a09a0f3", size = 109560, upload-time = "2026-07-22T11:38:12.799Z" }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/02/12/ab68b62c2bcd8f44a86d6c5eb0ba4f4b966203739b92abceb40e4d50cdb5/fastapi_mongo_base-1.5.7-py3-none-any.whl", hash = "sha256:60571fe6ff2b627199f10ffbacdd7db71f3a0909c9d0841f26047aaa979d9fa7", size = 66299, upload-time = "2026-07-12T06:50:17.86Z" },
+    { url = "https://files.pythonhosted.org/packages/7a/bd/62e6f3f15375a94249584ca048c63cd48d9b60ac50584f9001c0a49bc2d8/fastapi_mongo_base-1.8.0-py3-none-any.whl", hash = "sha256:ffc8cd919debc50550108dec8526e0111142a88c97b2b4aa3138eba29b4c5d7b", size = 83114, upload-time = "2026-07-22T11:38:11.457Z" },
 ]
 
 [[package]]
@@ -899,7 +899,7 @@ wheels = [
 
 [[package]]
 name = "mirza-bot"
-version = "0.1.16"
+version = "0.1.20"
 source = { virtual = "." }
 dependencies = [
     { name = "aiocache" },

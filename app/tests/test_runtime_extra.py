@@ -1,5 +1,6 @@
 """Extra coverage for runtime handlers, poller, and Bale renderer."""
 
+
 from __future__ import annotations
 
 import asyncio
@@ -158,9 +159,7 @@ async def test_bale_renderer_download_file() -> None:
         file=FileRef(file_id="fid", file_name="a.bin"),
         sender=Sender(id="1"),
     )
-    with patch.object(
-        renderer, "_download_bale_file", AsyncMock(return_value=b"data")
-    ):
+    with patch.object(renderer, "_download_bale_file", AsyncMock(return_value=b"data")):
         result = await renderer.download_attached_file(event)
     assert result == (b"data", "a.bin")
 
@@ -168,8 +167,10 @@ async def test_bale_renderer_download_file() -> None:
 @pytest.mark.asyncio
 async def test_bale_download_bale_file_uses_direct_url_and_timeout() -> None:
     """
-    Downloads must bypass telebot's fixed 300s aiohttp session timeout by
-    hitting Bale's file server directly with a longer, explicit timeout."""
+    Downloads must bypass telebot's fixed aiohttp timeout.
+
+    Hits Bale's file server directly with a longer, explicit timeout.
+    """
     bot = MagicMock()
     bot.token = "tok123"
     renderer = BaleEventRenderer(bot)
@@ -191,15 +192,18 @@ async def test_bale_download_bale_file_uses_direct_url_and_timeout() -> None:
     client_cls.assert_called_once()
     _, kwargs = client_cls.call_args
     assert kwargs["timeout"] == pytest.approx(240.0)
-    mock_client.get.assert_awaited_once_with("https://tapi.bale.ai/file/bottok123/fid123")
+    mock_client.get.assert_awaited_once_with(
+        "https://tapi.bale.ai/file/bottok123/fid123"
+    )
 
 
 def test_media_dict_preserves_file_name_and_mime_type_for_documents() -> None:
     """
-    Regression test: Bale sends audio files attached as a generic
-    "document" (not a voice note), and normalize_bale_message needs
-    file_name/mime_type to detect audio/* and route to transcription
-    instead of OCR. These were previously dropped for all non-video types."""
+    Keep file_name/mime_type for Bale document attachments.
+
+    Bale sends audio as a generic document; normalize_bale_message needs those
+    fields to route audio/* to transcription instead of OCR.
+    """
     media = MagicMock()
     media.file_id = "fid"
     media.file_size = 123

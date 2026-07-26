@@ -33,7 +33,9 @@ def _result_name(content_type: str, user_id: str | None, hint: str | None) -> st
     return f"{prefix}_{suffix}"
 
 
-async def _try_delete(renderer: object, chat_id: int | str, msg_id: int | str | None) -> None:
+async def _try_delete(
+    renderer: object, chat_id: int | str, msg_id: int | str | None
+) -> None:
     if msg_id is None:
         return
     try:
@@ -180,7 +182,9 @@ async def deliver_docx_first_result(
         )
 
     base_name = _result_name(content_type, user_id, file_name_hint)
-    file_name = f"{base_name}.docx" if not base_name.lower().endswith(".docx") else base_name
+    file_name = (
+        f"{base_name}.docx" if not base_name.lower().endswith(".docx") else base_name
+    )
     keyboard = kb.md_result_keyboard(content_type) if include_actions else None
 
     try:

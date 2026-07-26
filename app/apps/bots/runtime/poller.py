@@ -26,7 +26,9 @@ def _supports_polling(bot: object) -> bool:
 
 async def _fetch_updates(bot: object) -> list | None:
     try:
-        offset: int | None = bot.last_update_id + 1 if bot.last_update_id is not None else 0
+        offset: int | None = (
+            bot.last_update_id + 1 if bot.last_update_id is not None else 0
+        )
         return await bot.get_updates(
             offset=offset,
             timeout=10,
@@ -192,8 +194,14 @@ def _cb_to_dict(cb: object) -> dict:
             "message_id": getattr(msg, "message_id", 0),
             "chat": {"id": getattr(getattr(msg, "chat", None), "id", 0)},
             "text": getattr(msg, "text", ""),
-        } if msg else {},
-        "chat_id": getattr(getattr(getattr(cb, "message", None), "chat", None), "id", getattr(cb, "chat_id", 0)),
+        }
+        if msg
+        else {},
+        "chat_id": getattr(
+            getattr(getattr(cb, "message", None), "chat", None),
+            "id",
+            getattr(cb, "chat_id", 0),
+        ),
         "message_id": getattr(getattr(cb, "message", None), "message_id", 0),
     }
 
@@ -230,7 +238,11 @@ async def _polling_loop(interval: float) -> None:
         if total_slept >= heartbeat_interval:
             first = next(iter(_bale_bots()), None)
             uid = getattr(first, "last_update_id", None) if first else None
-            logger.info("Polling heartbeat (%.0fs): updates_consumed=%s", heartbeat_interval, uid)
+            logger.info(
+                "Polling heartbeat (%.0fs): updates_consumed=%s",
+                heartbeat_interval,
+                uid,
+            )
             total_slept = 0.0
 
         await asyncio.sleep(interval)

@@ -47,7 +47,10 @@ async def test_save_then_get_round_trips(fake_redis: FakeRedis) -> None:
 async def test_save_sets_a_ttl(fake_redis: FakeRedis) -> None:
     await result_content_cache.save(123, "content")
 
-    assert fake_redis.expirations["result_content:123"] == result_content_cache._DEFAULT_TTL
+    assert (
+        fake_redis.expirations["result_content:123"]
+        == result_content_cache._DEFAULT_TTL
+    )
 
 
 @pytest.mark.asyncio

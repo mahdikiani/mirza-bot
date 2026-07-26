@@ -1,5 +1,6 @@
 """Bale renderer backed by telegram-bale-bot."""
 
+
 from __future__ import annotations
 
 import logging
@@ -31,6 +32,7 @@ class BaleEventRenderer:
         self.bot = bot
 
     async def send_typing(self, chat_id: int | str) -> None:
+        """Show a typing indicator in the chat."""
         try:
             await self.bot.send_chat_action(chat_id, "typing")
         except Exception:
@@ -43,6 +45,7 @@ class BaleEventRenderer:
         reply_to: int | str | None = None,
         reply_keyboard: ReplyKeyboard | None = None,
     ) -> object | None:
+        """Send a plain text message."""
         kwargs: dict[str, object] = {}
         if reply_to:
             kwargs["reply_to_message_id"] = reply_to
@@ -58,6 +61,7 @@ class BaleEventRenderer:
         inline_keyboard: InlineKeyboard,
         reply_to: int | str | None = None,
     ) -> object | None:
+        """Send text with an inline keyboard."""
         kwargs: dict[str, object] = {
             "reply_markup": to_inline_markup(inline_keyboard),
         }
@@ -72,6 +76,7 @@ class BaleEventRenderer:
         text: str | None = None,
         inline_keyboard: InlineKeyboard | None = None,
     ) -> None:
+        """Edit an existing message text and optional keyboard."""
         try:
             if text is None:
                 msg = await self.bot.get_message(chat_id, message_id)
@@ -100,6 +105,7 @@ class BaleEventRenderer:
         text_value: str = "",
         raw_event: object | None = None,
     ) -> None:
+        """Answer a callback query."""
         await self.bot.answer_callback_query(
             callback_id,
             text=text_value or None,
@@ -107,6 +113,7 @@ class BaleEventRenderer:
         )
 
     async def send_contact_request(self, chat_id: int | str, text_value: str) -> None:
+        """Ask the user to share a contact."""
         from apps.bots.common.keyboards import contact_request_keyboard
 
         await self.send_text(
@@ -117,9 +124,11 @@ class BaleEventRenderer:
 
     async def _download_bale_file(self, file_id: str) -> bytes | None:
         """
-        Download a file by ID directly against Bale's file server,
-        bypassing telebot's fixed 300s aiohttp timeout (see module docstring
-        comment above BALE_FILE_DOWNLOAD_TIMEOUT)."""
+        Download a file by ID directly against Bale's file server.
+
+        Bypasses telebot's fixed 300s aiohttp timeout (see module docstring
+        comment above BALE_FILE_DOWNLOAD_TIMEOUT).
+        """
         url = f"https://tapi.bale.ai/file/bot{self.bot.token}/{file_id}"
         async with httpx.AsyncClient(timeout=BALE_FILE_DOWNLOAD_TIMEOUT) as client:
             resp = await client.get(url)
@@ -129,6 +138,7 @@ class BaleEventRenderer:
     async def download_attached_file(
         self, event: MessageEvent
     ) -> tuple[bytes, str] | None:
+        """Download the file attached to an inbound event."""
         if not event.file or not event.file.file_id:
             return None
         data = await self._download_bale_file(event.file.file_id)
@@ -140,14 +150,20 @@ class BaleEventRenderer:
     async def delete_message(
         self, chat_id: int | str, message_id: int | str
     ) -> None:
+        """Delete a chat message."""
         try:
             await self.bot.delete_message(chat_id, message_id)
         except Exception:
-            logger.debug("Bale delete_message failed for chat_id=%s msg_id=%s", chat_id, message_id)
+            logger.debug(
+                "Bale delete_message failed for chat_id=%s msg_id=%s",
+                chat_id,
+                message_id,
+            )
 
     async def download_document(
         self, chat_id: int | str, message_id: int | str
     ) -> bytes | None:
+        """Download document bytes for a message id."""
         try:
             msg = await self.bot.get_message(chat_id, message_id)
             if not msg:
@@ -177,6 +193,7 @@ class BaleEventRenderer:
         reply_to: int | str | None = None,
         inline_keyboard: InlineKeyboard | None = None,
     ) -> object | None:
+        """Send a document file to the chat."""
         from io import BytesIO
 
         from apps.bots.bale.markup import to_inline_markup
@@ -195,6 +212,7 @@ class BaleEventRenderer:
         )
 
     async def send_upload_action(self, chat_id: int | str) -> None:
+        """Show an upload-document chat action."""
         try:
             await self.bot.send_chat_action(chat_id, "upload_document")
         except Exception:
@@ -207,4 +225,5 @@ class BaleEventRenderer:
         *,
         raw_event: object | None = None,
     ) -> None:
+        """Answer an inline query."""
         logger.debug("Bale inline query not supported query_id=%s", query_id)
