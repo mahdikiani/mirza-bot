@@ -1,7 +1,7 @@
-"""Smoke test for server db re-export."""
+"""Smoke test for server db module."""
 
 from server import db as server_db
 
 
-def test_db_reexport() -> None:
-    assert server_db.db is not None
+def test_get_redis_is_exposed() -> None:
+    assert callable(server_db.get_redis)

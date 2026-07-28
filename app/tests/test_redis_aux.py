@@ -9,7 +9,7 @@ import pytest
 
 import server.db as redis_module
 from apps.ai.clients import OCRClient, TranscribeClient
-from server.db import get_redis
+from server.db import _build_redis_client, get_redis
 from utils.clients._base import (
     MAX_RETRIES,
     _admin_headers,
@@ -27,8 +27,21 @@ class TestRedis:
     def test_get_redis_returns_initialized_client(self) -> None:
         assert get_redis() is redis_module.redis
 
-    def test_redis_sync_attribute_exists(self) -> None:
-        assert hasattr(redis_module, "redis_sync")
+    def test_build_redis_client_returns_none_when_unconfigured(self) -> None:
+        assert _build_redis_client("") is None
+
+    def test_build_redis_client_decodes_responses(self) -> None:
+        """
+        Regression: an undecoded client breaks every str-keyed lookup.
+
+        hgetall()/smembers() on an undecoded client return bytes keys/
+        values, which broke every pending_tasks.get() call
+        (data["meta_data"] raised KeyError against a b"meta_data" key) and
+        made result_content_cache.get() hand back bytes where callers
+        expect str. decode_responses=True is what fixes both.
+        """
+        client = _build_redis_client("redis://localhost:6379/0")
+        assert client.connection_pool.connection_kwargs["decode_responses"] is True
 
 
 # ---------------------------------------------------------------------------

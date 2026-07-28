@@ -26,19 +26,52 @@ def _clear_registry() -> None:
 
 @pytest.mark.asyncio
 async def test_start_telegram_gateway_registers_and_starts() -> None:
+    """
+    _start_telegram_gateway creates one named supervisor task and tracks it.
+
+    The actual gateway build/wiring happens inside the supervisor
+    coroutine once it runs (see test_build_telegram_gateway_wires_
+    handlers) -- this test only covers _start_telegram_gateway's own
+    job: validating config and scheduling that supervisor.
+    """
     handler = BotHandler()
     handler._runtime_tasks = []
     bot = MagicMock()
     bot.token = "tg-token"
     bot.me = "tg_bot"
 
+    fake_task = MagicMock()
+
+    def _create_task(coro: object, *args: object, **kwargs: object) -> MagicMock:
+        # Patched create_task must close the coroutine — otherwise it
+        # leaks an un-awaited coroutine warning.
+        if asyncio.iscoroutine(coro):
+            coro.close()
+        return fake_task
+
+    with (
+        patch.object(Settings, "telegram_api_id", 123),
+        patch.object(Settings, "telegram_api_hash", "hash"),
+        patch(
+            "apps.bots.runtime.handlers.asyncio.create_task",
+            side_effect=_create_task,
+        ) as create_task,
+    ):
+        await handler._start_telegram_gateway(bot)
+
+    create_task.assert_called_once()
+    assert create_task.call_args.kwargs["name"] == "telethon-tg_bot"
+    assert fake_task in handler._runtime_tasks
+
+
+def test_build_telegram_gateway_wires_handlers() -> None:
+    """_build_telegram_gateway wires all four callbacks onto a fresh gateway."""
+    handler = BotHandler()
     fake_gateway = MagicMock()
     fake_gateway.on_message = MagicMock()
     fake_gateway.on_callback = MagicMock()
     fake_gateway.on_inline_query = MagicMock()
     fake_gateway.on_started = MagicMock()
-    fake_gateway.start = AsyncMock()
-    fake_task = MagicMock()
 
     with (
         patch.object(Settings, "telegram_api_id", 123),
@@ -47,17 +80,36 @@ async def test_start_telegram_gateway_registers_and_starts() -> None:
             "apps.bots.runtime.handlers.TelethonGateway",
             return_value=fake_gateway,
         ),
-        patch(
-            "apps.bots.runtime.handlers.asyncio.create_task",
-            return_value=fake_task,
-        ) as create_task,
     ):
-        await handler._start_telegram_gateway(bot)
+        gateway = handler._build_telegram_gateway("tg_bot", "tg-token")
 
-    create_task.assert_called_once()
+    assert gateway is fake_gateway
     fake_gateway.on_message.assert_called_once()
     fake_gateway.on_callback.assert_called_once()
-    assert fake_task in handler._runtime_tasks
+    fake_gateway.on_inline_query.assert_called_once()
+    fake_gateway.on_started.assert_called_once()
+
+
+@pytest.mark.asyncio
+async def test_supervise_telegram_gateway_restarts_then_gives_up() -> None:
+    """After enough rapid gateway failures, the supervisor exits the process."""
+    handler = BotHandler()
+    fake_gateway = MagicMock()
+    fake_gateway.start = AsyncMock(side_effect=RuntimeError("boom"))
+
+    with (
+        patch.object(BotHandler, "_MAX_QUICK_RETRIES", 2),
+        patch.object(BotHandler, "_RETRY_BACKOFF_SECONDS", 0),
+        patch.object(
+            handler, "_build_telegram_gateway", return_value=fake_gateway
+        ) as build_gateway,
+        patch("apps.bots.runtime.handlers.os._exit", side_effect=SystemExit) as exit_,
+        pytest.raises(SystemExit),
+    ):
+        await handler._supervise_telegram_gateway("tg_bot", "tg-token")
+
+    assert build_gateway.call_count == 2
+    exit_.assert_called_once_with(1)
 
 
 @pytest.mark.asyncio

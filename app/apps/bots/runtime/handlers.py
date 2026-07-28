@@ -4,6 +4,8 @@ from __future__ import annotations
 
 import asyncio
 import logging
+import os
+import time
 import tomllib
 from importlib.metadata import PackageNotFoundError, version
 from pathlib import Path
@@ -104,23 +106,8 @@ class BotHandler(metaclass=singleton.Singleton):
         register_renderer(bot.me, BaleEventRenderer(bot))
         await self._notify_admin_started(bot.me, "bale-polling", bot=bot)
 
-    async def _start_telegram_gateway(self, bot: object) -> None:
-        """Start Telethon gateway for a Telegram bot."""
-        token = getattr(bot, "token", None)
-        bot_name = getattr(bot, "me", "telegram")
-        if not token:
-            logging.warning(
-                "Skipping Telethon gateway for %s: TELEGRAM_TOKEN missing",
-                bot_name,
-            )
-            return
-        if not Settings.telegram_api_id or not Settings.telegram_api_hash:
-            logging.warning(
-                "Skipping Telethon gateway for %s: TELEGRAM_API_ID/API_HASH missing",
-                bot_name,
-            )
-            return
-
+    def _build_telegram_gateway(self, bot_name: str, token: str) -> TelethonGateway:
+        """Construct a fresh TelethonGateway wired to this handler's callbacks."""
         gateway = TelethonGateway(
             bot_name=bot_name,
             api_id=Settings.telegram_api_id,
@@ -166,10 +153,88 @@ class BotHandler(metaclass=singleton.Singleton):
         gateway.on_callback(on_callback)
         gateway.on_inline_query(on_inline_query)
         gateway.on_started(on_started)
-        task = asyncio.create_task(gateway.start(), name=f"telethon-{bot_name}")
+        return gateway
+
+    _MAX_QUICK_RETRIES: ClassVar[int] = 5
+    _QUICK_RETRY_WINDOW_SECONDS: ClassVar[float] = 300.0
+    _RETRY_BACKOFF_SECONDS: ClassVar[float] = 10.0
+
+    async def _supervise_telegram_gateway(self, bot_name: str, token: str) -> None:
+        """
+        Keep a Telegram gateway alive, restarting just the gateway on failure.
+
+        A gateway ending -- for any reason, including a clean return with
+        no exception -- means that platform's Telegram support is
+        silently dead until something restarts it: Telethon's own
+        auto-reconnect doesn't cover every failure mode (observed
+        directly: the client can go quiet for hours with nothing in the
+        logs, no exception raised). Rebuilding just this gateway (a fresh
+        TelethonGateway + Telethon client) is far cheaper than a full
+        container restart and doesn't interrupt Bale/the web server/the
+        task poller running in the same process. Only escalate to a full
+        process exit (letting `restart: unless-stopped` handle it, the
+        same recovery a human restarting the container by hand would do)
+        if restarts keep failing in a tight loop -- that points at
+        something a simple reconnect won't fix (e.g. a corrupted session).
+        """
+        failure_times: list[float] = []
+        while True:
+            gateway = self._build_telegram_gateway(bot_name, token)
+            try:
+                await gateway.start()
+                logging.error(
+                    "Telethon gateway for %s ended without an exception", bot_name
+                )
+            except Exception:
+                logging.exception("Telethon gateway for %s crashed", bot_name)
+
+            now = time.monotonic()
+            failure_times.append(now)
+            failure_times[:] = [
+                t for t in failure_times if now - t < self._QUICK_RETRY_WINDOW_SECONDS
+            ]
+            if len(failure_times) >= self._MAX_QUICK_RETRIES:
+                logging.critical(
+                    "Telethon gateway for %s failed %d times within %ds -- "
+                    "exiting process for a clean restart (see restart: "
+                    "unless-stopped)",
+                    bot_name,
+                    len(failure_times),
+                    self._QUICK_RETRY_WINDOW_SECONDS,
+                )
+                os._exit(1)
+
+            logging.warning(
+                "Restarting Telethon gateway for %s in %ds",
+                bot_name,
+                self._RETRY_BACKOFF_SECONDS,
+            )
+            await asyncio.sleep(self._RETRY_BACKOFF_SECONDS)
+
+    async def _start_telegram_gateway(self, bot: object) -> None:
+        """Start a supervised Telethon gateway for a Telegram bot."""
+        token = getattr(bot, "token", None)
+        bot_name = getattr(bot, "me", "telegram")
+        if not token:
+            logging.warning(
+                "Skipping Telethon gateway for %s: TELEGRAM_TOKEN missing",
+                bot_name,
+            )
+            return
+        if not Settings.telegram_api_id or not Settings.telegram_api_hash:
+            logging.warning(
+                "Skipping Telethon gateway for %s: TELEGRAM_API_ID/API_HASH missing",
+                bot_name,
+            )
+            return
+
+        task = asyncio.create_task(
+            self._supervise_telegram_gateway(bot_name, token),
+            name=f"telethon-{bot_name}",
+        )
         task.add_done_callback(self._log_runtime_task_result)
         self._runtime_tasks.append(task)
-        logging.info("Started Telethon gateway task for %s", bot_name)
+        logging.info("Started supervised Telethon gateway task for %s", bot_name)
 
     @staticmethod
     def _log_runtime_task_result(task: asyncio.Task) -> None:
@@ -180,6 +245,8 @@ class BotHandler(metaclass=singleton.Singleton):
             task.result()
         except Exception:
             logging.exception("Runtime task failed: %s", task.get_name())
+        else:
+            logging.error("Runtime task ended unexpectedly: %s", task.get_name())
 
     async def _notify_admin_started(
         self,
