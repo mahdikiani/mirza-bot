@@ -93,7 +93,7 @@ async def test_bale_edit_message_ignores_not_modified() -> None:
     bot.token = "x" * 51
     bot.me = "bale"
 
-    async def fake_super(self, *, text=None, **kwargs):
+    async def fake_super(self, text=None, chat_id=None, message_id=None, **kwargs):
         raise ApiTelegramException(
             "editMessageText",
             None,
@@ -104,6 +104,36 @@ async def test_bale_edit_message_ignores_not_modified() -> None:
 
     with patch.object(AsyncTeleBot, "edit_message_text", fake_super):
         await bot.edit_message_text("same", chat_id=1, message_id=2)
+
+
+@pytest.mark.asyncio
+async def test_bale_edit_message_forwards_positional_chat_and_message_id() -> None:
+    """
+    Regression check.
+
+    chat_id/message_id passed positionally (as the real caller in
+    bale/renderer.py does) used to be silently dropped -- the wrapper
+    only forwarded **kwargs to the real client, so every Bale
+    edit_message call actually edited nothing (chat_id/message_id both
+    defaulted to None), and the caller's blanket except-and-fallback
+    masked it by silently sending a brand-new message every time
+    instead of editing in place.
+    """
+    bot = BaleBot.__new__(BaleBot)
+    bot.token = "x" * 51
+    bot.me = "bale"
+
+    calls: list[tuple] = []
+
+    async def fake_super(self, *args: object, **kwargs: object) -> None:
+        calls.append((args, kwargs))
+
+    from telebot.async_telebot import AsyncTeleBot
+
+    with patch.object(AsyncTeleBot, "edit_message_text", fake_super):
+        await bot.edit_message_text("updated", 111, 222, reply_markup=None)
+
+    assert calls == [(("updated", 111, 222), {"reply_markup": None})]
 
 
 @pytest.mark.asyncio

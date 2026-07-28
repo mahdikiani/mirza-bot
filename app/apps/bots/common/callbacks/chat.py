@@ -67,6 +67,13 @@ async def handle_action_callback(
             else "auto"
         )
         content = await get_content(event, ctx)
+        if not content:
+            await ctx.renderer.send_text(
+                event.chat_id,
+                text("messages.no_content", locale=locale),
+                reply_to=event.message_id,
+            )
+            return True
         processing_msg = await ctx.renderer.send_text(
             event.chat_id,
             text("messages.processing", locale=target_lang),
@@ -83,13 +90,24 @@ async def handle_action_callback(
             "locale": target_lang,
             "action_name": action_name,
         }
-        await actions.run_promptic_action(
-            prompt_name=prompt,
-            content=content,
-            user_id=usso_uid,
-            target_language=target_lang,
-            meta_data=meta,
-        )
+        try:
+            result = await actions.run_promptic_action(
+                prompt_name=prompt,
+                content=content,
+                user_id=usso_uid,
+                target_language=target_lang,
+                meta_data=meta,
+            )
+            task_uid = str(result.get("uid") or result.get("id") or "")
+        except Exception:
+            logger.exception("Promptic action %s submission failed", action_name)
+            task_uid = ""
+        if not task_uid:
+            await ctx.renderer.edit_message(
+                event.chat_id,
+                processing_msg_id,
+                text("messages.file_processing_error", locale=target_lang),
+            )
     return True
 
 

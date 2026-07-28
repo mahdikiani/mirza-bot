@@ -66,12 +66,10 @@ async def _handle_convert_docx(
         return
 
     try:
-        from utils.clients.media import MediaClient
         from utils.clients.toolkit import convert_markdown_to_docx
 
         docx_bytes = await convert_markdown_to_docx(content)
 
-        await MediaClient.upload(docx_bytes, "document.docx")
         await ctx.renderer.send_document(
             event.chat_id,
             file_data=docx_bytes,
@@ -98,10 +96,7 @@ async def _handle_convert_markdown(
         )
         return
     try:
-        from utils.clients.media import MediaClient
-
         md_bytes = content.encode("utf-8")
-        await MediaClient.upload(md_bytes, "document.md")
         await ctx.renderer.send_document(
             event.chat_id,
             file_data=md_bytes,

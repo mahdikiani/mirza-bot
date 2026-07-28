@@ -222,13 +222,89 @@ class TestChatAndActionCallbacks:
             ),
             patch(
                 "apps.bots.common.actions.run_promptic_action",
-                AsyncMock(),
+                AsyncMock(return_value={"uid": "task1"}),
             ) as run,
         ):
             assert await handle_action_callback(
                 "action:summarize", _callback("action:summarize"), ctx, "fa", "u1"
             )
         run.assert_awaited()
+        renderer.edit_message.assert_not_awaited()
+
+    @pytest.mark.asyncio
+    async def test_action_callback_no_content_shows_error_without_submitting(
+        self,
+    ) -> None:
+        """
+        Regression check.
+
+        An empty/undetectable content used to still be submitted to
+        Promptic, leaving a "processing..." message that never resolves
+        -- must short-circuit with a user-facing error instead, matching
+        every other content-dependent flow.
+        """
+        from apps.bots.common.callbacks.chat import handle_action_callback
+
+        renderer = AsyncMock()
+        ctx = _ctx(renderer)
+        bot_user = MagicMock(preferred_language="fa")
+        with (
+            patch(
+                "apps.bots.common.callbacks.chat.require_verified_callback",
+                AsyncMock(return_value=("u1", bot_user)),
+            ),
+            patch(
+                "apps.bots.common.callbacks.chat.get_content",
+                AsyncMock(return_value=""),
+            ),
+            patch(
+                "apps.bots.common.actions.run_promptic_action",
+                AsyncMock(),
+            ) as run,
+        ):
+            assert await handle_action_callback(
+                "action:summarize", _callback("action:summarize"), ctx, "fa", "u1"
+            )
+        run.assert_not_awaited()
+        renderer.send_text.assert_awaited()
+
+    @pytest.mark.asyncio
+    async def test_action_callback_submission_failure_edits_processing_message(
+        self,
+    ) -> None:
+        """
+        Regression check.
+
+        A Promptic submission failure (exception, or a response with no
+        task id) used to be silently swallowed by the gateway's
+        top-level try/except, leaving the user staring at a
+        "processing..." message forever with no error shown.
+        """
+        from apps.bots.common.callbacks.chat import handle_action_callback
+
+        renderer = AsyncMock()
+        renderer.send_text = AsyncMock(return_value=MagicMock(id=55))
+        ctx = _ctx(renderer)
+        bot_user = MagicMock(preferred_language="fa")
+        with (
+            patch(
+                "apps.bots.common.callbacks.chat.require_verified_callback",
+                AsyncMock(return_value=("u1", bot_user)),
+            ),
+            patch(
+                "apps.bots.common.callbacks.chat.get_content",
+                AsyncMock(return_value="body"),
+            ),
+            patch(
+                "apps.bots.common.actions.run_promptic_action",
+                AsyncMock(side_effect=RuntimeError("boom")),
+            ),
+        ):
+            assert await handle_action_callback(
+                "action:summarize", _callback("action:summarize"), ctx, "fa", "u1"
+            )
+        renderer.edit_message.assert_awaited_once()
+        assert renderer.edit_message.await_args.args[1] == 55
 
 
 class TestMenuHandlers:

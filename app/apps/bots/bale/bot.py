@@ -99,7 +99,7 @@ class BaleBot(AsyncTeleBot, metaclass=singleton.Singleton):
     ) -> None:
         """Edit a message with safe error handling for common API exceptions."""
         try:
-            await super().edit_message_text(text=text[:4096], **kwargs)
+            await super().edit_message_text(text[:4096], *args, **kwargs)
         except ApiTelegramException as e:
             err = str(e)
             if (

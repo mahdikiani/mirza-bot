@@ -38,6 +38,31 @@ def test_extract_docx_text() -> None:
     assert extract_docx_text(data) == "سلام docx"
 
 
+def _multi_paragraph_docx(paragraphs: list[str]) -> bytes:
+    buffer = io.BytesIO()
+    body = "".join(f"<w:p><w:r><w:t>{p}</w:t></w:r></w:p>" for p in paragraphs)
+    xml = (
+        '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>'
+        '<w:document xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main">'
+        f"<w:body>{body}</w:body></w:document>"
+    )
+    with zipfile.ZipFile(buffer, "w") as archive:
+        archive.writestr("word/document.xml", xml)
+    return buffer.getvalue()
+
+
+def test_extract_docx_text_keeps_paragraphs_separate() -> None:
+    """
+    Regression: paragraphs used to be joined with no separator at all.
+
+    "end of first." and "Second paragraph" ran together as
+    "end of first.Second paragraph" -- every <w:p> boundary must become
+    a line break.
+    """
+    data = _multi_paragraph_docx(["end of first.", "Second paragraph"])
+    assert extract_docx_text(data) == "end of first.\nSecond paragraph"
+
+
 def test_bale_markup_converters() -> None:
     reply = to_reply_markup(ReplyKeyboard(rows=[[ReplyButton("Help")]], one_time=True))
     assert reply is not None

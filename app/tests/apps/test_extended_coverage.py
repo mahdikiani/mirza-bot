@@ -698,7 +698,7 @@ async def test_handler_promptic_action_callback() -> None:
         ),
         patch(
             "apps.bots.common.callbacks.chat.actions.run_promptic_action",
-            AsyncMock(),
+            AsyncMock(return_value={"uid": "task1"}),
         ) as run_action,
     ):
         await handle_callback_event(event, _ctx(renderer))
