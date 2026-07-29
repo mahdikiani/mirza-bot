@@ -183,3 +183,26 @@ class TestPendingTasks:
     async def test_all_pending_handles_set_missing(self, fake_redis: FakeRedis) -> None:
         fake_redis.sets.pop("pending_tasks:index", None)
         assert await pending_tasks.all_pending() == []
+
+    @pytest.mark.asyncio
+    async def test_touch_refreshes_expiration(self, fake_redis: FakeRedis) -> None:
+        """
+        Regression check.
+
+        A large document can legitimately take hours -- touch() lets the
+        poller keep a still-processing task's Redis entry alive instead
+        of it expiring out from under an in-progress job.
+        """
+        await pending_tasks.add("task-7", "ocr", "user-7")
+        fake_redis.expirations["pending_task:task-7"] = 1  # simulate near-expiry
+
+        await pending_tasks.touch("task-7")
+
+        assert (
+            fake_redis.expirations["pending_task:task-7"]
+            == pending_tasks._DEFAULT_TTL
+        )
+
+    @pytest.mark.asyncio
+    async def test_touch_on_missing_task_does_not_raise(self) -> None:
+        await pending_tasks.touch("does-not-exist")

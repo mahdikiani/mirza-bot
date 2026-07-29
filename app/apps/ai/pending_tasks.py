@@ -21,7 +21,13 @@ from server.db import get_redis
 
 _KEY_PREFIX = "pending_task:"
 _INDEX_KEY = "pending_tasks:index"
-_DEFAULT_TTL = 3600  # 1 hour — matches MAX_TASK_AGE_SECONDS in poller
+# Large documents (hundreds of pages) can legitimately take hours --
+# matches MAX_TASK_AGE_SECONDS in poller. The poller also refreshes
+# this TTL (see touch()) on every poll that confirms a task is still
+# actively processing, so this value only bounds how long a task can
+# go *unconfirmed* before being swept up as abandoned, not the actual
+# maximum processing time.
+_DEFAULT_TTL = 14400  # 4 hours
 
 
 def _key(task_uid: str) -> str:
@@ -61,6 +67,20 @@ async def get(task_uid: str) -> dict | None:
     data["meta_data"] = json.loads(data["meta_data"])
     data["submitted_at"] = float(data["submitted_at"])
     return data
+
+
+async def touch(task_uid: str) -> None:
+    """
+    Refresh a pending task's TTL without changing its stored data.
+
+    Called by the poller whenever it confirms a task is still actively
+    processing, so a legitimately long-running job (a large document)
+    never expires out from under itself just because it's taking a
+    while -- only a task the poller can no longer confirm is alive
+    ages out.
+    """
+    redis: Redis = get_redis()
+    await redis.expire(_key(task_uid), _DEFAULT_TTL)
 
 
 async def remove(task_uid: str) -> None:

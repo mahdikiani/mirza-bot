@@ -11,7 +11,12 @@ from apps.ai.schemas import TaskWebhookPayload
 from utils.i18n import text
 
 POLL_INTERVAL = 30
-MAX_TASK_AGE_SECONDS = 3600
+# Absolute safety-net ceiling for a task the poller can no longer confirm
+# is alive (e.g. the toolkit service is down, or a task got stuck without
+# ever reaching a terminal status). A task that's still confirmed
+# "processing" on every poll never hits this -- see touch() in
+# pending_tasks, called below whenever a poll confirms the task is alive.
+MAX_TASK_AGE_SECONDS = 14400  # 4 hours
 
 logger = logging.getLogger(__name__)
 
@@ -92,8 +97,69 @@ async def _notify_timeout(task: dict) -> None:
     logger.warning("Poller: task %s timed out", task_uid)
 
 
-async def _poll_once() -> None:
+_CONTENT_TYPE_MAP = {
+    "ocr": "document",
+    "transcribe": "voice",
+    "youtube": "url",
+    "webpage": "url",
+    "promptic": "promptic",
+}
+_FETCH_MAP = {
+    "ocr": ("/ocrs", "OCR"),
+    "transcribe": ("/transcribes", "Transcribe"),
+    "youtube": ("/youtube", "YouTube"),
+    "webpage": ("/webpages", "Webpage"),
+    "promptic": ("/promptic", "Promptic"),
+}
+
+
+async def _handle_poll_completed(task: dict, data: dict, label: str, ct: str) -> None:
     from apps.ai.routes import _deliver_result
+
+    task_uid = task["task_uid"]
+    task_meta = task.get("meta_data") or {}
+    result = data.get("result") or ""
+
+    if not result:
+        payload = TaskWebhookPayload(
+            uid=task_uid,
+            task_status="error",
+            meta_data=task_meta,
+            task_report=text(
+                "messages.task_error", locale=str(task_meta.get("locale") or "fa")
+            ),
+        )
+        await _deliver_result(payload, ct)
+        await pending_tasks.remove(task_uid)
+        logger.warning(
+            "Poller: %s task %s completed with empty result", label, task_uid
+        )
+        return
+
+    payload = TaskWebhookPayload(
+        uid=task_uid, task_status="completed", meta_data=task_meta, result=result
+    )
+    await _deliver_result(payload, ct)
+    await pending_tasks.remove(task_uid)
+    logger.info("Poller: %s task %s completed", label, task_uid)
+
+
+async def _handle_poll_error(task: dict, data: dict, label: str, ct: str) -> None:
+    from apps.ai.routes import _deliver_result
+
+    task_uid = task["task_uid"]
+    task_meta = task.get("meta_data") or {}
+    error_result = data.get("result") or data.get("error") or "Unknown error"
+    logger.warning("Poller: %s task %s error: %s", label, task_uid, error_result[:200])
+
+    payload = TaskWebhookPayload(
+        uid=task_uid, task_status="error", meta_data=task_meta, result=error_result
+    )
+    await _deliver_result(payload, ct)
+    await pending_tasks.remove(task_uid)
+
+
+async def _poll_once() -> None:
     from utils.clients.toolkit import toolkit_client
 
     try:
@@ -107,28 +173,13 @@ async def _poll_once() -> None:
 
     now = time.time()
 
-    ct_map = {
-        "ocr": "document",
-        "transcribe": "voice",
-        "youtube": "url",
-        "webpage": "url",
-        "promptic": "promptic",
-    }
-    fetch_map = {
-        "ocr": ("/ocrs", "OCR"),
-        "transcribe": ("/transcribes", "Transcribe"),
-        "youtube": ("/youtube", "YouTube"),
-        "webpage": ("/webpages", "Webpage"),
-        "promptic": ("/promptic", "Promptic"),
-    }
-
     for task in tasks:
         submitted_at = task.get("submitted_at", now)
         if now - submitted_at > MAX_TASK_AGE_SECONDS:
             await _notify_timeout(task)
             continue
 
-        endpoint, label = fetch_map.get(task["task_type"], (None, None))
+        endpoint, label = _FETCH_MAP.get(task["task_type"], (None, None))
         if not endpoint:
             continue
 
@@ -142,56 +193,18 @@ async def _poll_once() -> None:
             continue
 
         status = data.get("task_status")
+        if status not in ("completed", "error"):
+            # Confirmed alive and still working -- refresh its TTL so a
+            # legitimately long-running job never expires out from under
+            # itself mid-task.
+            await pending_tasks.touch(task["task_uid"])
+            continue
+
+        ct = _CONTENT_TYPE_MAP.get(task["task_type"], "document")
         if status == "completed":
-            result = data.get("result") or ""
-            task_meta = task.get("meta_data") or {}
-            if not result:
-                payload = TaskWebhookPayload(
-                    uid=task["task_uid"],
-                    task_status="error",
-                    meta_data=task_meta,
-                    task_report=text(
-                        "messages.task_error",
-                        locale=str(task_meta.get("locale") or "fa"),
-                    ),
-                )
-                ct = ct_map.get(task["task_type"], "document")
-                await _deliver_result(payload, ct)
-                await pending_tasks.remove(task["task_uid"])
-                logger.warning(
-                    "Poller: %s task %s completed with empty result",
-                    label,
-                    task["task_uid"],
-                )
-                continue
-            payload = TaskWebhookPayload(
-                uid=task["task_uid"],
-                task_status="completed",
-                meta_data=task_meta,
-                result=result,
-            )
-            ct = ct_map.get(task["task_type"], "document")
-            await _deliver_result(payload, ct)
-            await pending_tasks.remove(task["task_uid"])
-            logger.info("Poller: %s task %s completed", label, task["task_uid"])
+            await _handle_poll_completed(task, data, label, ct)
         elif status == "error":
-            task_meta = task.get("meta_data") or {}
-            error_result = data.get("result") or data.get("error") or "Unknown error"
-            logger.warning(
-                "Poller: %s task %s error: %s",
-                label,
-                task["task_uid"],
-                error_result[:200],
-            )
-            payload = TaskWebhookPayload(
-                uid=task["task_uid"],
-                task_status="error",
-                meta_data=task_meta,
-                result=error_result,
-            )
-            ct = ct_map.get(task["task_type"], "document")
-            await _deliver_result(payload, ct)
-            await pending_tasks.remove(task["task_uid"])
+            await _handle_poll_error(task, data, label, ct)
 
 
 async def run_task_poller() -> None:

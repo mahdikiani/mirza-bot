@@ -405,7 +405,7 @@ async def test_task_poller_poll_once_timeout() -> None:
     old_task = {
         "task_uid": "old-1",
         "task_type": "youtube",
-        "submitted_at": time.time() - 4000,
+        "submitted_at": time.time() - (task_poller.MAX_TASK_AGE_SECONDS + 1),
         "meta_data": {"chat_id": 1, "bot_name": "b", "message_id": 2},
     }
     with (

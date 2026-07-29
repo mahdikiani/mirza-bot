@@ -464,6 +464,53 @@ class TestTaskPollerCoverage:
         timeout.assert_awaited()
         assert deliver.await_count >= 2
 
+    @pytest.mark.asyncio
+    async def test_poll_once_touches_still_processing_task(self) -> None:
+        """
+        Regression check.
+
+        A task confirmed still "processing" used to be left alone --
+        its Redis entry would eventually expire purely from wall-clock
+        age even while genuinely still being worked on. It must now be
+        touch()-ed to extend its TTL instead.
+        """
+        from apps.ai import task_poller
+
+        processing = {
+            "task_uid": "p1",
+            "task_type": "ocr",
+            "submitted_at": 1e12,
+            "meta_data": {},
+        }
+
+        client = AsyncMock()
+        resp = MagicMock()
+        resp.raise_for_status.return_value = None
+        resp.json.return_value = {"task_status": "processing"}
+        client.get = AsyncMock(return_value=resp)
+
+        from contextlib import asynccontextmanager
+
+        @asynccontextmanager
+        async def _toolkit():
+            yield client
+
+        with (
+            patch(
+                "apps.ai.pending_tasks.all_pending",
+                AsyncMock(return_value=[processing]),
+            ),
+            patch("utils.clients.toolkit.toolkit_client", _toolkit),
+            patch("apps.ai.pending_tasks.touch", AsyncMock()) as touch,
+            patch("apps.ai.routes._deliver_result", AsyncMock()) as deliver,
+            patch("apps.ai.pending_tasks.remove", AsyncMock()) as remove,
+        ):
+            await task_poller._poll_once()
+
+        touch.assert_awaited_once_with("p1")
+        deliver.assert_not_awaited()
+        remove.assert_not_awaited()
+
 
 class TestPrefsAndSettings:
     @pytest.mark.asyncio
