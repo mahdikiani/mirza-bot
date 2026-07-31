@@ -58,12 +58,76 @@ async def test_resolve_ok_when_usso_returns_user() -> None:
             "apps.bots.common.auth_gate.get_existing_usso_user",
             AsyncMock(return_value=usso),
         ),
+        patch(
+            "apps.bots.common.auth_gate.ensure_telegram_workspace",
+            AsyncMock(return_value="ws-1"),
+        ) as mock_ensure_workspace,
         patch.object(BotUser, "save", AsyncMock()),
     ):
         status, verified = await resolve_verified_user(_event())
     assert status == VerifiedUserStatus.ok
     assert verified is not None
     assert verified.usso_uid == "usso-1"
+    mock_ensure_workspace.assert_awaited_once_with("usso-1")
+    assert bot_user.telegram_workspace_id == "ws-1"
+
+
+@pytest.mark.asyncio
+async def test_resolve_skips_workspace_ensure_when_already_cached() -> None:
+    """
+    Test that a cached workspace_id skips the impersonation round-trip.
+
+    A user who already has telegram_workspace_id set costs no extra
+    impersonation round-trip on later calls.
+    """
+    bot_user = _bot_user(telegram_workspace_id="ws-cached")
+    usso = SimpleNamespace(uid="usso-1")
+    with (
+        patch(
+            "apps.bots.common.auth_gate.get_bot_user",
+            AsyncMock(return_value=bot_user),
+        ),
+        patch(
+            "apps.bots.common.auth_gate.get_existing_usso_user",
+            AsyncMock(return_value=usso),
+        ),
+        patch(
+            "apps.bots.common.auth_gate.ensure_telegram_workspace",
+            AsyncMock(),
+        ) as mock_ensure_workspace,
+        patch.object(BotUser, "save", AsyncMock()) as mock_save,
+    ):
+        status, verified = await resolve_verified_user(_event())
+    assert status == VerifiedUserStatus.ok
+    assert verified is not None
+    mock_ensure_workspace.assert_not_awaited()
+    mock_save.assert_not_awaited()
+
+
+@pytest.mark.asyncio
+async def test_resolve_workspace_ensure_failure_does_not_block_login() -> None:
+    """A failed/None workspace resolution must not fail the whole request."""
+    bot_user = _bot_user()
+    usso = SimpleNamespace(uid="usso-1")
+    with (
+        patch(
+            "apps.bots.common.auth_gate.get_bot_user",
+            AsyncMock(return_value=bot_user),
+        ),
+        patch(
+            "apps.bots.common.auth_gate.get_existing_usso_user",
+            AsyncMock(return_value=usso),
+        ),
+        patch(
+            "apps.bots.common.auth_gate.ensure_telegram_workspace",
+            AsyncMock(return_value=None),
+        ),
+        patch.object(BotUser, "save", AsyncMock()),
+    ):
+        status, verified = await resolve_verified_user(_event())
+    assert status == VerifiedUserStatus.ok
+    assert verified is not None
+    assert bot_user.telegram_workspace_id is None
 
 
 @pytest.mark.asyncio

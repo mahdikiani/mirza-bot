@@ -91,6 +91,7 @@ async def _submit_async_urls(
     user_text: str,
     user_id: str,
     locale: str,
+    workspace_id: str | None = None,
 ) -> None:
     """Enqueue file/YouTube toolkit tasks for each async URL."""
     for url in async_urls:
@@ -107,6 +108,7 @@ async def _submit_async_urls(
             user_id=user_id,
             locale=locale,
             user_prompt=user_text or None,
+            workspace_id=workspace_id,
         )
         if task_uid:
             continue
@@ -128,6 +130,7 @@ async def handle_urls_message(
     text_value: str,
     user_id: str,
     locale: str,
+    workspace_id: str | None = None,
 ) -> None:
     """
     Route links in a message.
@@ -163,7 +166,9 @@ async def handle_urls_message(
         )
         return
 
-    await _submit_async_urls(event, ctx, async_urls, user_text, user_id, locale)
+    await _submit_async_urls(
+        event, ctx, async_urls, user_text, user_id, locale, workspace_id
+    )
 
     if not webpage_urls:
         return

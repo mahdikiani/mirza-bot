@@ -27,6 +27,7 @@ async def run_promptic_action(
     user_id: str,
     target_language: str,
     meta_data: dict,
+    workspace_id: str | None = None,
 ) -> dict:
     """Dispatch a Promptic action asynchronously."""
     webhook_path = webhook_url_for("promptic_webhook")
@@ -41,6 +42,7 @@ async def run_promptic_action(
         user_id=user_id,
         blocking=False,
         meta_data=meta_data,
+        workspace_id=workspace_id,
     )
     task_uid = str(result.get("uid") or result.get("id") or "") or None
     if task_uid:

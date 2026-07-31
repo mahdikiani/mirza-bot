@@ -18,6 +18,7 @@ async def handle_file_event(
     locale: str,
     response_message_id: int | str,
     user_prompt: str | None = None,
+    workspace_id: str | None = None,
 ) -> None:
     """Process an attached file (text ingest or async OCR/transcribe)."""
     if not event.file:
@@ -79,6 +80,7 @@ async def handle_file_event(
         user_id=user_id,
         locale=locale,
         user_prompt=user_prompt,
+        workspace_id=workspace_id,
     )
     if not task_uid:
         raise RuntimeError("AI Toolkit did not return a task identifier")

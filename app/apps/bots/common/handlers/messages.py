@@ -109,6 +109,7 @@ async def _handle_inbound_file(
     usso_uid: str,
     locale: str,
     text_value: str,
+    workspace_id: str | None = None,
 ) -> None:
     """Process an attached file (text extract or async OCR/transcribe)."""
     file_name = event.file.file_name or "file.bin"
@@ -121,6 +122,7 @@ async def _handle_inbound_file(
             locale=locale,
             response_message_id=event.message_id,
             user_prompt=text_value or None,
+            workspace_id=workspace_id,
         )
         return
 
@@ -140,6 +142,7 @@ async def _handle_inbound_file(
             locale=locale,
             response_message_id=response_id,
             user_prompt=text_value or None,
+            workspace_id=workspace_id,
         )
     except Exception:
         logger.exception("File processing failed")
@@ -232,7 +235,8 @@ async def handle_message_event(
     verified = await require_verified_user(event, ctx, locale)
     if not verified:
         return
-    usso_uid, _bot_user = verified
+    usso_uid, bot_user = verified
+    workspace_id = getattr(bot_user, "telegram_workspace_id", None)
 
     menu_action = resolve_menu_action(text_value)
     if menu_action and await handle_menu_action(
@@ -242,12 +246,19 @@ async def handle_message_event(
 
     if event.file:
         await _handle_inbound_file(
-            event, ctx, usso_uid=usso_uid, locale=locale, text_value=text_value
+            event,
+            ctx,
+            usso_uid=usso_uid,
+            locale=locale,
+            text_value=text_value,
+            workspace_id=workspace_id,
         )
         return
 
     if contains_valid_urls(text_value):
-        await handle_urls_message(event, ctx, text_value, usso_uid, locale)
+        await handle_urls_message(
+            event, ctx, text_value, usso_uid, locale, workspace_id=workspace_id
+        )
         return
 
     if text_value:

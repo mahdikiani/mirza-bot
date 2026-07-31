@@ -97,6 +97,9 @@ async def handle_action_callback(
                 user_id=usso_uid,
                 target_language=target_lang,
                 meta_data=meta,
+                workspace_id=(
+                    bot_user.telegram_workspace_id if bot_user else None
+                ),
             )
             task_uid = str(result.get("uid") or result.get("id") or "")
         except Exception:

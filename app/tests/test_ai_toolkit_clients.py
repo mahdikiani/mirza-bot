@@ -59,6 +59,50 @@ async def test_ocr_submit_uses_toolkit_ocrs_route() -> None:
 
 
 @pytest.mark.asyncio
+async def test_ocr_submit_includes_workspace_id_when_given() -> None:
+    """
+    Test that workspace_id, when given, is threaded into the payload.
+
+    This is how the Telegram user's own workspace (not the shared
+    service account's) bills for the task.
+    """
+    client = AsyncMock()
+    client.post = AsyncMock(return_value=_response({"uid": "ocr-1"}))
+
+    with patch("apps.ai.clients.toolkit_client", return_value=_client_ctx(client)):
+        await OCRClient.submit(
+            file_url="https://files/doc.pdf",
+            user_id="user-1",
+            webhook_url="https://bot/ocr",
+            workspace_id="ws-1",
+        )
+
+    sent_payload = client.post.call_args.kwargs["json"]
+    assert sent_payload["workspace_id"] == "ws-1"
+
+
+@pytest.mark.asyncio
+async def test_ocr_submit_omits_workspace_id_when_absent() -> None:
+    """
+    Test that omitting workspace_id leaves the field out entirely.
+
+    Falls back to the caller's personal quota on the ai-toolkit side.
+    """
+    client = AsyncMock()
+    client.post = AsyncMock(return_value=_response({"uid": "ocr-1"}))
+
+    with patch("apps.ai.clients.toolkit_client", return_value=_client_ctx(client)):
+        await OCRClient.submit(
+            file_url="https://files/doc.pdf",
+            user_id="user-1",
+            webhook_url="https://bot/ocr",
+        )
+
+    sent_payload = client.post.call_args.kwargs["json"]
+    assert "workspace_id" not in sent_payload
+
+
+@pytest.mark.asyncio
 async def test_transcribe_submit_forwards_user_and_metadata() -> None:
     client = AsyncMock()
     client.post = AsyncMock(return_value=_response({"uid": "tr-1"}))
@@ -106,7 +150,7 @@ async def test_promptic_execute_uses_toolkit_promptic_route() -> None:
         },
         json={
             "input_variables": {"content": "text"},
-            "meta_data": {"user_id": "user-1"},
+            "user_id": "user-1",
             "webhook_custom_headers": _WEBHOOK_HEADERS,
         },
     )

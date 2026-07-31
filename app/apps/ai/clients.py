@@ -34,6 +34,7 @@ class OCRClient:
         user_id: str,
         webhook_url: str,
         meta_data: dict | None = None,
+        workspace_id: str | None = None,
     ) -> dict:
         """Submit an OCR task to AI Toolkit."""
         payload: dict[str, object] = {
@@ -42,6 +43,8 @@ class OCRClient:
             "webhook_url": webhook_url,
             "meta_data": meta_data or {},
         }
+        if workspace_id:
+            payload["workspace_id"] = workspace_id
         if headers := _webhook_headers():
             payload["webhook_custom_headers"] = headers
         async with toolkit_client() as c:
@@ -70,6 +73,7 @@ class TranscribeClient:
         user_id: str,
         webhook_url: str,
         meta_data: dict | None = None,
+        workspace_id: str | None = None,
     ) -> dict:
         """Submit a transcription task to AI Toolkit."""
         payload: dict[str, object] = {
@@ -78,6 +82,8 @@ class TranscribeClient:
             "webhook_url": webhook_url,
             "meta_data": meta_data or {},
         }
+        if workspace_id:
+            payload["workspace_id"] = workspace_id
         if headers := _webhook_headers():
             payload["webhook_custom_headers"] = headers
         async with toolkit_client() as c:
@@ -106,11 +112,14 @@ class YoutubeClient:
         user_id: str,
         webhook_url: str | None = None,
         meta_data: dict | None = None,
+        workspace_id: str | None = None,
     ) -> dict:
         """Submit a YouTube transcription task."""
         payload: dict[str, object] = {"video_id": video_id, "user_id": user_id}
         if webhook_url:
             payload["webhook_url"] = webhook_url
+        if workspace_id:
+            payload["workspace_id"] = workspace_id
         if headers := _webhook_headers():
             payload["webhook_custom_headers"] = headers
         if meta_data:
@@ -138,6 +147,7 @@ class WebpageClient:
         user_id: str,
         webhook_url: str,
         meta_data: dict | None = None,
+        workspace_id: str | None = None,
     ) -> dict:
         """Submit a webpage extraction task."""
         payload: dict[str, object] = {
@@ -146,6 +156,8 @@ class WebpageClient:
             "webhook_url": webhook_url,
             "meta_data": meta_data or {},
         }
+        if workspace_id:
+            payload["workspace_id"] = workspace_id
         if headers := _webhook_headers():
             payload["webhook_custom_headers"] = headers
         async with toolkit_client() as c:
@@ -173,19 +185,26 @@ class PrompticClient:
         user_id: str | None = None,
         blocking: bool = False,
         meta_data: dict[str, object] | None = None,
+        workspace_id: str | None = None,
     ) -> dict:
         """Run a prompt template and return the task payload."""
-        meta: dict[str, object] = dict(meta_data) if meta_data else {}
-        if user_id:
-            meta.setdefault("user_id", user_id)
-
         payload: dict[str, Any] = {"input_variables": input_variables}
         if webhook_url:
             payload["webhook_url"] = webhook_url
+        # ai-toolkit's PrompticCreate reads user_id/workspace_id as
+        # top-level fields (via authorize_create_on_behalf's on-behalf
+        # resolution) -- previously this was placed under meta_data,
+        # where ai-toolkit never looks for it, so every promptic task
+        # submitted here was silently attributed to the shared service
+        # account instead of the actual Telegram user.
+        if user_id:
+            payload["user_id"] = user_id
+        if workspace_id:
+            payload["workspace_id"] = workspace_id
         if headers := _webhook_headers():
             payload["webhook_custom_headers"] = headers
-        if meta:
-            payload["meta_data"] = meta
+        if meta_data:
+            payload["meta_data"] = meta_data
 
         async with toolkit_client() as c:
             resp = await c.post(

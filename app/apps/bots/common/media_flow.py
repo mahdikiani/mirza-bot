@@ -132,6 +132,7 @@ async def submit_ocr_url(
     file_url: str,
     user_id: str,
     meta_data: dict,
+    workspace_id: str | None = None,
 ) -> str | None:
     """Submit OCR for a remote file URL."""
     result = await OCRClient.submit(
@@ -139,6 +140,7 @@ async def submit_ocr_url(
         user_id=user_id,
         webhook_url=webhook_url_for("ocr_webhook"),
         meta_data=meta_data,
+        workspace_id=workspace_id,
     )
     return str(result.get("uid") or result.get("id") or "") or None
 
@@ -147,6 +149,7 @@ async def submit_transcribe_url(
     file_url: str,
     user_id: str,
     meta_data: dict,
+    workspace_id: str | None = None,
 ) -> str | None:
     """Submit transcribe for a remote file URL."""
     result = await TranscribeClient.submit(
@@ -154,6 +157,7 @@ async def submit_transcribe_url(
         user_id=user_id,
         webhook_url=webhook_url_for("transcribe_webhook"),
         meta_data=meta_data,
+        workspace_id=workspace_id,
     )
     return str(result.get("uid") or result.get("id") or "") or None
 
@@ -162,6 +166,7 @@ async def submit_youtube(
     video_url: str,
     user_id: str,
     meta_data: dict,
+    workspace_id: str | None = None,
 ) -> str | None:
     """Submit YouTube transcript task."""
     from apps.bots.common.link_router import extract_youtube_video_id
@@ -175,6 +180,7 @@ async def submit_youtube(
         user_id=user_id,
         webhook_url=webhook_path,
         meta_data=meta_data,
+        workspace_id=workspace_id,
     )
     task_uid = str(result.get("uid") or result.get("id") or "") or None
     if task_uid:
@@ -193,6 +199,7 @@ async def submit_webpage(
     url: str,
     user_id: str,
     meta_data: dict,
+    workspace_id: str | None = None,
 ) -> str | None:
     """Submit webpage extraction task."""
     result = await WebpageClient.submit(
@@ -200,6 +207,7 @@ async def submit_webpage(
         user_id=user_id,
         webhook_url=webhook_url_for("webpage_webhook"),
         meta_data=meta_data,
+        workspace_id=workspace_id,
     )
     return str(result.get("uid") or result.get("id") or "") or None
 
@@ -215,6 +223,7 @@ async def submit_file_bytes(
     user_id: str,
     locale: str = "fa",
     user_prompt: str | None = None,
+    workspace_id: str | None = None,
 ) -> str | None:
     """Upload bytes and dispatch OCR or transcribe."""
     file_name = _safe_filename(content_type, file_name)
@@ -232,10 +241,10 @@ async def submit_file_bytes(
 
     audio_video_ct = {"voice", "audio", "video"}
     if content_type in audio_video_ct:
-        task_uid = await submit_transcribe_url(file_url, user_id, meta)
+        task_uid = await submit_transcribe_url(file_url, user_id, meta, workspace_id)
         task_type = "transcribe"
     else:
-        task_uid = await submit_ocr_url(file_url, user_id, meta)
+        task_uid = await submit_ocr_url(file_url, user_id, meta, workspace_id)
         task_type = "ocr"
 
     if task_uid:
@@ -259,6 +268,7 @@ async def submit_url(
     user_id: str,
     locale: str = "fa",
     user_prompt: str | None = None,
+    workspace_id: str | None = None,
 ) -> str | None:
     """Route a URL to the correct AI Toolkit task."""
     meta = toolkit_task_meta(
@@ -278,14 +288,14 @@ async def submit_url(
         return None
 
     if kind == LinkKind.youtube:
-        return await submit_youtube(url, user_id, meta)
+        return await submit_youtube(url, user_id, meta, workspace_id)
 
     if kind == LinkKind.file:
         if is_audio_video_url(url):
-            task_uid = await submit_transcribe_url(url, user_id, meta)
+            task_uid = await submit_transcribe_url(url, user_id, meta, workspace_id)
             task_type = "transcribe"
         else:
-            task_uid = await submit_ocr_url(url, user_id, meta)
+            task_uid = await submit_ocr_url(url, user_id, meta, workspace_id)
             task_type = "ocr"
         if task_uid:
             from apps.ai.pending_tasks import add as add_pending_task

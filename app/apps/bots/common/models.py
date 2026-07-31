@@ -14,6 +14,7 @@ class BotUser(UserOwnedEntity):
     platform_user_id: str = ""
     usso_user_id: str = ""
     usso_synced: bool = True
+    telegram_workspace_id: str | None = None
     preferred_language: str = "fa"
     preferred_model: str = "openai/gpt-5.6-terra"
     phone_verified: bool = False

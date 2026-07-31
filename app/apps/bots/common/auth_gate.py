@@ -6,6 +6,7 @@ import logging
 from dataclasses import dataclass
 from enum import StrEnum
 
+from apps.accounts.clients import ensure_telegram_workspace
 from apps.accounts.handlers import (
     get_existing_usso_user,
     usso_identifier_type_for_platform,
@@ -50,6 +51,32 @@ def platform_user_id(event: PlatformEvent) -> str | None:
     return str(value) if value else None
 
 
+async def _sync_usso_state_and_workspace(
+    bot_user: models.BotUser, usso_uid: str
+) -> None:
+    """
+    Sync usso_user_id/usso_synced and lazily resolve telegram_workspace_id.
+
+    Workspace resolution runs once per user (an impersonation round-trip)
+    then is cached on bot_user forever -- every later call is free.
+    """
+    dirty = False
+    if bot_user.usso_user_id != usso_uid or not bot_user.usso_synced:
+        bot_user.usso_user_id = usso_uid
+        bot_user.usso_synced = True
+        dirty = True
+    if not bot_user.telegram_workspace_id:
+        # Never blocks the request: a failure here just means
+        # billing/visibility falls back to the user's personal
+        # (non-workspace) context for now.
+        workspace_id = await ensure_telegram_workspace(usso_uid)
+        if workspace_id:
+            bot_user.telegram_workspace_id = workspace_id
+            dirty = True
+    if dirty:
+        await bot_user.save()
+
+
 async def resolve_verified_user(
     event: PlatformEvent,
 ) -> tuple[VerifiedUserStatus, VerifiedUser | None]:
@@ -84,10 +111,7 @@ async def resolve_verified_user(
 
     if usso_user is not None:
         usso_uid = str(usso_user.uid)
-        if bot_user.usso_user_id != usso_uid or not bot_user.usso_synced:
-            bot_user.usso_user_id = usso_uid
-            bot_user.usso_synced = True
-            await bot_user.save()
+        await _sync_usso_state_and_workspace(bot_user, usso_uid)
         return VerifiedUserStatus.ok, VerifiedUser(
             usso_uid=usso_uid,
             bot_user=bot_user,
