@@ -432,6 +432,98 @@ async def test_deliver_result_error_status() -> None:
 
 
 @pytest.mark.asyncio
+async def test_deliver_result_routes_processing_progress_to_notify_progress() -> None:
+    from apps.ai.routes import TaskWebhookPayload, _deliver_result
+
+    payload = TaskWebhookPayload(
+        uid="p1",
+        task_status="processing",
+        task_progress=30,
+        task_report="30/100 pages processed",
+        meta_data={"chat_id": 1, "bot_name": "b", "message_id": 2},
+    )
+    with patch("apps.ai.routes._notify_task_progress", AsyncMock()) as notify:
+        await _deliver_result(payload, "document")
+    notify.assert_awaited_once_with(payload)
+
+
+@pytest.mark.asyncio
+async def test_deliver_result_ignores_processing_status_without_progress() -> None:
+    """A "processing" webhook with no task_progress is a no-op, not an edit."""
+    from apps.ai.routes import TaskWebhookPayload, _deliver_result
+
+    payload = TaskWebhookPayload(
+        uid="p2",
+        task_status="processing",
+        meta_data={"chat_id": 1, "bot_name": "b", "message_id": 2},
+    )
+    with patch("apps.ai.routes._notify_task_progress", AsyncMock()) as notify:
+        await _deliver_result(payload, "document")
+    notify.assert_not_awaited()
+
+
+@pytest.mark.asyncio
+async def test_notify_task_progress_edits_message_with_page_counts() -> None:
+    from apps.ai.routes import TaskWebhookPayload, _notify_task_progress
+    from apps.bots.common.renderer_registry import register_renderer
+
+    renderer = AsyncMock()
+    register_renderer("bot-a", renderer)
+    meta = {"chat_id": 1, "bot_name": "bot-a", "message_id": 2, "locale": "fa"}
+    payload = TaskWebhookPayload(
+        uid="p3",
+        task_status="processing",
+        task_progress=30,
+        task_report="30/100 pages processed",
+        meta_data={},
+    )
+    with (
+        patch("apps.ai.pending_tasks.touch", AsyncMock()) as touch,
+        patch("apps.ai.pending_tasks.remove", AsyncMock()) as remove,
+        patch(
+            "apps.ai.pending_tasks.get",
+            AsyncMock(return_value={"meta_data": meta}),
+        ),
+    ):
+        await _notify_task_progress(payload)
+
+    renderer.edit_message.assert_awaited_once()
+    _, _, text_arg = renderer.edit_message.await_args.args
+    assert "30/100" in text_arg
+    touch.assert_awaited_once_with("p3")
+    remove.assert_not_awaited()
+
+
+@pytest.mark.asyncio
+async def test_notify_task_progress_falls_back_to_percent_without_page_counts() -> None:
+    """If task_report doesn't parse as "N/M", fall back to a percent message."""
+    from apps.ai.routes import TaskWebhookPayload, _notify_task_progress
+    from apps.bots.common.renderer_registry import register_renderer
+
+    renderer = AsyncMock()
+    register_renderer("bot-b", renderer)
+    meta = {"chat_id": 1, "bot_name": "bot-b", "message_id": 2, "locale": "en"}
+    payload = TaskWebhookPayload(
+        uid="p4",
+        task_status="processing",
+        task_progress=42,
+        task_report=None,
+        meta_data={},
+    )
+    with (
+        patch("apps.ai.pending_tasks.touch", AsyncMock()),
+        patch(
+            "apps.ai.pending_tasks.get",
+            AsyncMock(return_value={"meta_data": meta}),
+        ),
+    ):
+        await _notify_task_progress(payload)
+
+    _, _, text_arg = renderer.edit_message.await_args.args
+    assert "42%" in text_arg
+
+
+@pytest.mark.asyncio
 async def test_deliver_result_uses_renderer_registry() -> None:
     from apps.ai.routes import TaskWebhookPayload, _deliver_result
     from apps.bots.common.renderer_registry import register_renderer

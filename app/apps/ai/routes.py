@@ -4,6 +4,7 @@
 from __future__ import annotations
 
 import logging
+import re
 
 from fastapi import APIRouter, BackgroundTasks, Depends
 
@@ -29,10 +30,13 @@ __all__ = [
     "TaskWebhookPayload",
     "_deliver_result",
     "_notify_task_error",
+    "_notify_task_progress",
     "_process_ocr_webhook",
     "_process_transcribe_webhook",
     "router",
 ]
+
+_PAGE_PROGRESS_RE = re.compile(r"^(\d+)/(\d+)")
 
 
 async def _fetch_task_result(
@@ -215,6 +219,9 @@ async def _deliver_result(payload: TaskWebhookPayload, content_type: str) -> Non
         return
 
     if payload.task_status != "completed":
+        if payload.task_status == "processing" and payload.task_progress is not None:
+            await _notify_task_progress(payload)
+            return
         logger.warning("Task %s status=%s ignored", payload.uid, payload.task_status)
         return
 
@@ -309,6 +316,49 @@ async def _notify_task_error(payload: TaskWebhookPayload) -> None:
         logger.error("No renderer registered for bot %s (task error)", bot_name)
 
     await pending_tasks.remove(payload.uid)
+
+
+async def _notify_task_progress(payload: TaskWebhookPayload) -> None:
+    """
+    Edit the "processing..." message to show progress on a long task.
+
+    Unlike ``_notify_task_error``, the task is still running -- the
+    pending record must survive (touched, not removed) so the eventual
+    completed/error webhook can still find its routing meta.
+    """
+    from apps.ai import pending_tasks
+
+    meta = await _resolve_delivery_meta(payload)
+    chat_id = meta.get("chat_id")
+    message_id = meta.get("message_id")
+    bot_name = meta.get("bot_name")
+    locale = str(meta.get("locale", "fa"))
+
+    renderer = get_renderer(str(bot_name)) if bot_name else None
+    if chat_id and bot_name and renderer:
+        match = _PAGE_PROGRESS_RE.match(payload.task_report or "")
+        progress_text = (
+            text(
+                "messages.processing_progress",
+                locale=locale,
+                completed=match.group(1),
+                total=match.group(2),
+            )
+            if match
+            else text(
+                "messages.processing_progress_percent",
+                locale=locale,
+                progress=payload.task_progress,
+            )
+        )
+        try:
+            await renderer.edit_message(chat_id, message_id, progress_text)
+        except Exception:
+            logger.exception("Failed to notify task progress for %s", payload.uid)
+    elif chat_id and bot_name:
+        logger.error("No renderer registered for bot %s (task progress)", bot_name)
+
+    await pending_tasks.touch(payload.uid)
 
 
 async def _process_ocr_webhook(payload: TaskWebhookPayload) -> None:

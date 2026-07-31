@@ -56,6 +56,8 @@ messages:
     دکمه‌های زیر نتایج برای ترجمه، خلاصه، جزوه‌سازی و سوال پرسیدن هستند.
   thinking: "در حال فکر کردن..."
   processing: "در حال پردازش..."
+  processing_progress: "در حال پردازش... ({completed}/{total} صفحه)"
+  processing_progress_percent: "در حال پردازش... ({progress}%)"
   reading_link: "در حال خواندن لینک..."
   link_ready: "محتوای {label} دریافت شد. در حال آماده‌سازی پاسخ..."
   no_user: "کاربر شناسایی نشد."

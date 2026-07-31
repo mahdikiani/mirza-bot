@@ -54,6 +54,8 @@ messages:
     • In groups, reply to a message and mention the bot
   thinking: "Thinking..."
   processing: "Processing..."
+  processing_progress: "Processing... ({completed}/{total} pages)"
+  processing_progress_percent: "Processing... ({progress}%)"
   reading_link: "Reading link..."
   link_ready: "{label} content received. Preparing the answer..."
   no_user: "User was not identified."
