@@ -109,11 +109,11 @@ async def test_get_user_profile_server_error_propagates() -> None:
 
 def test_to_user_data_maps_uid_to_sub() -> None:
     """
-    UserResponse (REST record) keys the id as `uid`; UserData (JWT claims
-    shape) reads `.uid` off `sub`. Without mapping uid->sub, every caller
-    of get_existing_usso_user/get_usso_user silently got an empty uid back.
-    """
+    Without mapping uid->sub, callers got an empty uid back.
 
+    UserResponse (REST record) keys the id as `uid`; UserData (JWT claims
+    shape) reads `.uid` off `sub`.
+    """
     user_data = _to_user_data({"uid": "real-uid-123", "tenant_id": "t1"})
 
     assert user_data.uid == "real-uid-123"
