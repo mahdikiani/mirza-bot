@@ -10,7 +10,7 @@ import httpx
 import pytest
 import pytest_asyncio
 
-from apps.accounts.handlers import get_user_profile
+from apps.accounts.handlers import _to_user_data, get_user_profile
 from apps.accounts.schemas import Profile
 
 pytestmark = pytest.mark.usefixtures("_clear_profile_cache")
@@ -105,3 +105,24 @@ async def test_get_user_profile_server_error_propagates() -> None:
         pytest.raises(httpx.HTTPStatusError),
     ):
         await get_user_profile("server-error-user")
+
+
+def test_to_user_data_maps_uid_to_sub() -> None:
+    """
+    UserResponse (REST record) keys the id as `uid`; UserData (JWT claims
+    shape) reads `.uid` off `sub`. Without mapping uid->sub, every caller
+    of get_existing_usso_user/get_usso_user silently got an empty uid back.
+    """
+
+    user_data = _to_user_data({"uid": "real-uid-123", "tenant_id": "t1"})
+
+    assert user_data.uid == "real-uid-123"
+
+
+def test_to_user_data_passes_through_existing_user_data() -> None:
+    """A value that's already UserData (e.g. from a JWT) is returned as-is."""
+    from usso import UserData
+
+    original = UserData(sub="already-user-data")
+
+    assert _to_user_data(original) is original

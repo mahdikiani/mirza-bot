@@ -34,7 +34,15 @@ async def get_usso_client() -> AsyncGenerator[UssoAccountsClient]:
 
 
 def _to_user_data(user_response: object) -> UserData:
-    """Convert UserResponse to legacy UserData for compatibility."""
+    """
+    Convert UserResponse to legacy UserData for compatibility.
+
+    UserResponse (REST user record) keys its id as `uid`; UserData (JWT
+    claims shape) keys it as `sub` (and exposes `.uid` as a property read
+    off `sub`). Without this mapping, `sub` is left unset and every caller
+    of `get_existing_usso_user`/`get_usso_user` silently gets an empty
+    `.uid` back instead of the real user id.
+    """
     if isinstance(user_response, UserData):
         return user_response
     data = (
@@ -42,6 +50,7 @@ def _to_user_data(user_response: object) -> UserData:
         if hasattr(user_response, "model_dump")
         else dict(user_response)
     )
+    data.setdefault("sub", data.get("uid"))
     return UserData(**data)
 
 
