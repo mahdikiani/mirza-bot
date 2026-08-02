@@ -115,9 +115,16 @@ def toolkit_task_meta(
     }
 
 
-async def upload_bytes(file_bytes: bytes, file_name: str) -> str:
+async def upload_bytes(
+    file_bytes: bytes,
+    file_name: str,
+    user_id: str | None = None,
+    workspace_id: str | None = None,
+) -> str:
     """Upload file bytes to Media service."""
-    return await MediaClient.upload(file_bytes, file_name)
+    return await MediaClient.upload(
+        file_bytes, file_name, user_id=user_id, workspace_id=workspace_id
+    )
 
 
 def webhook_url_for(route_name: str) -> str:
@@ -237,7 +244,9 @@ async def submit_file_bytes(
         file_name_hint=file_name,
         user_prompt=user_prompt,
     )
-    file_url = await upload_bytes(file_bytes, file_name)
+    file_url = await upload_bytes(
+        file_bytes, file_name, user_id=user_id, workspace_id=workspace_id
+    )
 
     audio_video_ct = {"voice", "audio", "video"}
     if content_type in audio_video_ct:

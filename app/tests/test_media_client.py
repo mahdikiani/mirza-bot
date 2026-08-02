@@ -91,3 +91,46 @@ async def test_upload_raises_value_error_when_no_url() -> None:
         pytest.raises(ValueError, match="no URL returned for file"),
     ):
         await MediaClient.upload(b"file-content", "missing.pdf")
+
+
+@pytest.mark.asyncio
+async def test_upload_includes_user_and_workspace_id() -> None:
+    """
+    Without user_id, media attributes every upload to mirza-bot's own key.
+
+    That's the shared service-key identity, not the actual Telegram user
+    uploading -- no user/workspace ever owns the file.
+    """
+    upload_resp = _mock_response(
+        json_data={"uid": "file-1", "url": "https://media.example.com/f"},
+    )
+    patch_resp = _mock_response(json_data={"url": "https://media.example.com/f"})
+    mock_client = _make_mock_httpx_client(upload_resp, patch_resp)
+
+    with patch("utils.clients.media.httpx.AsyncClient", return_value=mock_client):
+        await MediaClient.upload(
+            b"file-content",
+            "test.pdf",
+            user_id="telegram-user-1",
+            workspace_id="ws-1",
+        )
+
+    sent_data = mock_client.post.call_args.kwargs["data"]
+    assert sent_data["user_id"] == "telegram-user-1"
+    assert sent_data["workspace_id"] == "ws-1"
+
+
+@pytest.mark.asyncio
+async def test_upload_omits_user_and_workspace_id_when_absent() -> None:
+    upload_resp = _mock_response(
+        json_data={"uid": "file-1", "url": "https://media.example.com/f"},
+    )
+    patch_resp = _mock_response(json_data={"url": "https://media.example.com/f"})
+    mock_client = _make_mock_httpx_client(upload_resp, patch_resp)
+
+    with patch("utils.clients.media.httpx.AsyncClient", return_value=mock_client):
+        await MediaClient.upload(b"file-content", "test.pdf")
+
+    sent_data = mock_client.post.call_args.kwargs["data"]
+    assert "user_id" not in sent_data
+    assert "workspace_id" not in sent_data

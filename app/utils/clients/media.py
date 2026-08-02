@@ -13,9 +13,18 @@ class MediaClient:
     """Upload files to services/media and return a public URL."""
 
     @staticmethod
-    async def upload(file_bytes: bytes, filename: str) -> str:
+    async def upload(
+        file_bytes: bytes,
+        filename: str,
+        user_id: str | None = None,
+        workspace_id: str | None = None,
+    ) -> str:
         """
         Upload *file_bytes* and make it publicly accessible.
+
+        Without user_id, the media service attributes every upload to
+        mirza-bot's own shared API key instead of the actual Telegram
+        user uploading -- no user/workspace ever owns the file.
 
         Returns the public URL of the uploaded file.
         Raises ValueError if no URL is returned by the service.
@@ -25,10 +34,15 @@ class MediaClient:
             headers={"x-api-key": Settings.media_api_key or ""},
             timeout=120.0,
         ) as c:
+            data = {"filename": filename}
+            if user_id:
+                data["user_id"] = user_id
+            if workspace_id:
+                data["workspace_id"] = workspace_id
             upload_resp = await c.post(
                 "/f/upload",
                 files={"file": (filename, file_bytes)},
-                data={"filename": filename},
+                data=data,
             )
             upload_resp.raise_for_status()
             file_id = upload_resp.json().get("uid")
