@@ -262,7 +262,12 @@ async def test_handle_message_uses_group_session_id_and_thread() -> None:
         await handle_message_event(event, ctx)
 
     chat_completion.assert_awaited_once_with(
-        event, "hello group", locale="fa", renderer=renderer
+        event,
+        "hello group",
+        locale="fa",
+        renderer=renderer,
+        usso_uid="usso-1",
+        workspace_id=None,
     )
     assert renderer.sent[-1][1] == "ai response"
 

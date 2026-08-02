@@ -211,3 +211,43 @@ async def test_completion_complete() -> None:
     client.post.assert_awaited_once()
     called_path = client.post.await_args.args[0]
     assert called_path == "/openai/v1/chat/completions"
+
+
+@pytest.mark.asyncio
+async def test_completion_complete_includes_user_and_workspace_id() -> None:
+    """
+    Without user_id, ai-toolkit bills chat against mirza-bot's own key.
+
+    That's the shared service-key identity, not the actual Telegram user
+    asking.
+    """
+    client = AsyncMock()
+    client.post = AsyncMock(
+        return_value=_response({"choices": [{"message": {"content": "hi"}}]})
+    )
+
+    with patch("apps.ai.clients.toolkit_client", return_value=_client_ctx(client)):
+        await CompletionClient.complete(
+            messages=[{"role": "user", "content": "hi"}],
+            user_id="telegram-user-1",
+            workspace_id="ws-1",
+        )
+
+    sent_json = client.post.call_args.kwargs["json"]
+    assert sent_json["user_id"] == "telegram-user-1"
+    assert sent_json["workspace_id"] == "ws-1"
+
+
+@pytest.mark.asyncio
+async def test_completion_complete_omits_user_and_workspace_id_when_absent() -> None:
+    client = AsyncMock()
+    client.post = AsyncMock(
+        return_value=_response({"choices": [{"message": {"content": "hi"}}]})
+    )
+
+    with patch("apps.ai.clients.toolkit_client", return_value=_client_ctx(client)):
+        await CompletionClient.complete(messages=[{"role": "user", "content": "hi"}])
+
+    sent_json = client.post.call_args.kwargs["json"]
+    assert "user_id" not in sent_json
+    assert "workspace_id" not in sent_json

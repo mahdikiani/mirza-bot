@@ -28,16 +28,22 @@ async def handle_chat_callback(
         verified = await require_verified_callback(event, ctx, locale)
         if not verified:
             return True
-        usso_uid, _bot_user = verified
-        await _handle_transcript_chat(event, ctx, locale, usso_uid)
+        usso_uid, bot_user = verified
+        workspace_id = getattr(bot_user, "telegram_workspace_id", None)
+        await _handle_transcript_chat(
+            event, ctx, locale, usso_uid, workspace_id=workspace_id
+        )
         return True
 
     if data == "chat:voice":
         verified = await require_verified_callback(event, ctx, locale)
         if not verified:
             return True
-        usso_uid, _bot_user = verified
-        await _handle_voice_chat(event, ctx, locale, usso_uid)
+        usso_uid, bot_user = verified
+        workspace_id = getattr(bot_user, "telegram_workspace_id", None)
+        await _handle_voice_chat(
+            event, ctx, locale, usso_uid, workspace_id=workspace_id
+        )
         return True
 
     return False
@@ -119,6 +125,8 @@ async def _handle_voice_chat(
     ctx: BotRuntimeContext,
     locale: str,
     usso_uid: str,
+    *,
+    workspace_id: str | None = None,
 ) -> None:
     """Send a transcribed voice result directly to chat with reply-chain context."""
     from apps.bots.common import context
@@ -155,6 +163,8 @@ async def _handle_voice_chat(
             transcript,
             locale=locale,
             renderer=ctx.renderer,
+            usso_uid=usso_uid,
+            workspace_id=workspace_id,
         )
     except context.InsufficientCreditsError:
         await context.notify_admin_insufficient_credits(ctx.renderer, event.chat_id)
@@ -186,6 +196,8 @@ async def _handle_transcript_chat(
     ctx: BotRuntimeContext,
     locale: str,
     usso_uid: str,
+    *,
+    workspace_id: str | None = None,
 ) -> None:
     """Send a transcribed voice message to chat with its reply-chain context."""
     from apps.bots.common import context
@@ -222,6 +234,8 @@ async def _handle_transcript_chat(
             transcript,
             locale=locale,
             renderer=ctx.renderer,
+            usso_uid=usso_uid,
+            workspace_id=workspace_id,
         )
     except context.InsufficientCreditsError:
         await context.notify_admin_insufficient_credits(ctx.renderer, event.chat_id)

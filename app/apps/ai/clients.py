@@ -250,11 +250,23 @@ class CompletionClient:
     async def complete(
         messages: list[dict[str, str]],
         model: str | None = None,
+        user_id: str | None = None,
+        workspace_id: str | None = None,
     ) -> str:
-        """Send messages to /chat/completions and return assistant content."""
+        """
+        Send messages to /chat/completions and return assistant content.
+
+        Without user_id, ai-toolkit bills/limits against mirza-bot's own
+        shared API key instead of the actual Telegram user asking -- every
+        chat would draw from one pool no matter who's chatting.
+        """
         body: dict[str, Any] = {"messages": messages}
         if model:
             body["model"] = model
+        if user_id:
+            body["user_id"] = user_id
+        if workspace_id:
+            body["workspace_id"] = workspace_id
 
         async with toolkit_client(request_timeout=120.0) as c:
             # ai-toolkit mounts its OpenAI-compatible router under /openai/v1

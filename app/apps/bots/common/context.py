@@ -145,6 +145,8 @@ async def chat_completion(
     *,
     locale: str = "fa",
     renderer: object | None = None,
+    usso_uid: str | None = None,
+    workspace_id: str | None = None,
 ) -> str:
     """Run stateless chat completion using reply-chain context."""
     messages = await build_reply_chain_messages(event, user_text, renderer=renderer)
@@ -157,7 +159,9 @@ async def chat_completion(
 
         model = await get_user_model(sender_id)
     try:
-        return await CompletionClient.complete(messages, model=model)
+        return await CompletionClient.complete(
+            messages, model=model, user_id=usso_uid, workspace_id=workspace_id
+        )
     except InsufficientCreditsError:
         raise
     except Exception:

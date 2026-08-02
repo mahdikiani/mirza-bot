@@ -160,6 +160,7 @@ async def _handle_chat_text(
     usso_uid: str,
     locale: str,
     text_value: str,
+    workspace_id: str | None = None,
 ) -> None:
     """Store user text, complete via AI, and store the assistant reply."""
     cleaned = strip_bot_mention(text_value, ctx.bot_username)
@@ -176,7 +177,12 @@ async def _handle_chat_text(
     )
     try:
         response = await context.chat_completion(
-            event, cleaned, locale=locale, renderer=ctx.renderer
+            event,
+            cleaned,
+            locale=locale,
+            renderer=ctx.renderer,
+            usso_uid=usso_uid,
+            workspace_id=workspace_id,
         )
     except InsufficientCreditsError:
         await context.notify_admin_insufficient_credits(ctx.renderer, event.chat_id)
@@ -263,5 +269,10 @@ async def handle_message_event(
 
     if text_value:
         await _handle_chat_text(
-            event, ctx, usso_uid=usso_uid, locale=locale, text_value=text_value
+            event,
+            ctx,
+            usso_uid=usso_uid,
+            locale=locale,
+            text_value=text_value,
+            workspace_id=workspace_id,
         )
