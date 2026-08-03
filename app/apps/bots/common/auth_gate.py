@@ -6,7 +6,6 @@ import logging
 from dataclasses import dataclass
 from enum import StrEnum
 
-from apps.accounts.clients import ensure_telegram_workspace
 from apps.accounts.handlers import (
     get_existing_usso_user,
     usso_identifier_type_for_platform,
@@ -52,27 +51,28 @@ def platform_user_id(event: PlatformEvent) -> str | None:
 
 
 async def _sync_usso_state_and_workspace(
-    bot_user: models.BotUser, usso_uid: str
+    bot_user: models.BotUser, usso_user: object
 ) -> None:
     """
-    Sync usso_user_id/usso_synced and lazily resolve telegram_workspace_id.
+    Sync usso_user_id/usso_synced and telegram_workspace_id.
 
-    Workspace resolution runs once per user (an impersonation round-trip)
-    then is cached on bot_user forever -- every later call is free.
+    workspace_id comes straight off the already-fetched usso_user (USSO
+    auto-provisions a user's personal workspace, uid == user.uid, on user
+    creation -- no separate lookup, no impersonation needed). A user with
+    no personal workspace yet (e.g. created before it existed) just has
+    workspace_id=None here, and billing/visibility fall back to their
+    personal (non-workspace) context, same as today.
     """
+    usso_uid = str(usso_user.uid)
+    workspace_id = getattr(usso_user, "workspace_id", None)
     dirty = False
     if bot_user.usso_user_id != usso_uid or not bot_user.usso_synced:
         bot_user.usso_user_id = usso_uid
         bot_user.usso_synced = True
         dirty = True
-    if not bot_user.telegram_workspace_id:
-        # Never blocks the request: a failure here just means
-        # billing/visibility falls back to the user's personal
-        # (non-workspace) context for now.
-        workspace_id = await ensure_telegram_workspace(usso_uid)
-        if workspace_id:
-            bot_user.telegram_workspace_id = workspace_id
-            dirty = True
+    if workspace_id and bot_user.telegram_workspace_id != workspace_id:
+        bot_user.telegram_workspace_id = workspace_id
+        dirty = True
     if dirty:
         await bot_user.save()
 
@@ -111,7 +111,7 @@ async def resolve_verified_user(
 
     if usso_user is not None:
         usso_uid = str(usso_user.uid)
-        await _sync_usso_state_and_workspace(bot_user, usso_uid)
+        await _sync_usso_state_and_workspace(bot_user, usso_user)
         return VerifiedUserStatus.ok, VerifiedUser(
             usso_uid=usso_uid,
             bot_user=bot_user,

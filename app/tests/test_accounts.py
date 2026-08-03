@@ -126,3 +126,30 @@ def test_to_user_data_passes_through_existing_user_data() -> None:
     original = UserData(sub="already-user-data")
 
     assert _to_user_data(original) is original
+
+
+def test_to_user_data_derives_workspace_id_from_own_uid_in_workspace_ids() -> None:
+    """
+    A user's personal workspace uid always equals their own uid.
+
+    Its presence in the already-returned workspace_ids list is enough to
+    derive workspace_id -- no extra lookup, no impersonation.
+    """
+    user_data = _to_user_data({
+        "uid": "real-uid-123",
+        "tenant_id": "t1",
+        "workspace_ids": ["real-uid-123", "other-ws"],
+    })
+
+    assert user_data.workspace_id == "real-uid-123"
+
+
+def test_to_user_data_workspace_id_none_when_own_uid_not_in_workspace_ids() -> None:
+    """A user with no personal workspace yet gets workspace_id=None."""
+    user_data = _to_user_data({
+        "uid": "real-uid-123",
+        "tenant_id": "t1",
+        "workspace_ids": [],
+    })
+
+    assert user_data.workspace_id is None

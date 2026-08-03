@@ -42,6 +42,14 @@ def _to_user_data(user_response: object) -> UserData:
     off `sub`). Without this mapping, `sub` is left unset and every caller
     of `get_existing_usso_user`/`get_usso_user` silently gets an empty
     `.uid` back instead of the real user id.
+
+    Also derives workspace_id from workspace_ids: a user's personal
+    workspace is always created with uid == user.uid (USSO auto-provisions
+    it on user creation), so its presence in workspace_ids -- already
+    returned by this same lookup -- is enough to know it exists. This
+    needs no extra call and no impersonation; a user with no personal
+    workspace yet (e.g. created before it existed) just falls back to
+    personal billing, same as today.
     """
     if isinstance(user_response, UserData):
         return user_response
@@ -51,6 +59,9 @@ def _to_user_data(user_response: object) -> UserData:
         else dict(user_response)
     )
     data.setdefault("sub", data.get("uid"))
+    uid = data.get("uid")
+    if uid and uid in (data.get("workspace_ids") or []):
+        data.setdefault("workspace_id", uid)
     return UserData(**data)
 
 
