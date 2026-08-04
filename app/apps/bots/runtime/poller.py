@@ -186,11 +186,8 @@ def _msg_to_dict(msg: object) -> dict:
 
 def _cb_to_dict(cb: object) -> dict:
     msg = getattr(cb, "message", None)
-    return {
-        "id": getattr(cb, "id", ""),
-        "data": getattr(cb, "data", ""),
-        "from": {"id": getattr(getattr(cb, "from_user", None), "id", 0)},
-        "message": {
+    message_dict: dict = (
+        {
             "message_id": getattr(msg, "message_id", 0),
             "chat": {"id": getattr(getattr(msg, "chat", None), "id", 0)},
             "text": getattr(msg, "text", "") or "",
@@ -202,7 +199,19 @@ def _cb_to_dict(cb: object) -> dict:
             "caption": getattr(msg, "caption", "") or "",
         }
         if msg
-        else {},
+        else {}
+    )
+    if msg:
+        # Carries the document's file_id through so a long result's content
+        # can be re-downloaded directly (see normalize_bale_callback ->
+        # CallbackEvent.file), since Bale's Bot API has no way to fetch an
+        # arbitrary past message by id the way download_document would need.
+        _attach_media(message_dict, msg)
+    return {
+        "id": getattr(cb, "id", ""),
+        "data": getattr(cb, "data", ""),
+        "from": {"id": getattr(getattr(cb, "from_user", None), "id", 0)},
+        "message": message_dict,
         "chat_id": getattr(
             getattr(getattr(cb, "message", None), "chat", None),
             "id",

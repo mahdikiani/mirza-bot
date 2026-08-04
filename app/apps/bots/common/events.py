@@ -102,6 +102,11 @@ class CallbackEvent:
     sender: Sender | None = None
     metadata: Metadata = field(default_factory=dict)
     raw: object | None = None
+    # The file (if any) attached to the message this callback's button is
+    # on -- e.g. the .md document a long AI result was delivered as. Lets
+    # content lookup re-download it directly by file_id on platforms (Bale)
+    # whose Bot API has no way to fetch an arbitrary past message by id.
+    file: FileRef | None = None
 
 
 @dataclass

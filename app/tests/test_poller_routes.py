@@ -59,6 +59,38 @@ class TestCbToDict:
         assert result["message"]["text"] == "hello"
         assert result["message"]["caption"] == ""
 
+    def test_cb_to_dict_carries_document_file_id(self) -> None:
+        """
+        The document's file_id must survive the manual object->dict conversion.
+
+        Lets a long result's content be re-downloaded directly by file_id
+        (see CallbackEvent.file) when the redis cache is unavailable/expired,
+        since Bale's Bot API has no generic "get message by id" to fall back on.
+        """
+        chat = SimpleNamespace(id=42)
+        document = SimpleNamespace(
+            file_id="file-xyz", file_name="result.md", mime_type="text/markdown",
+            file_size=2048,
+        )
+        message = SimpleNamespace(
+            message_id=99,
+            chat=chat,
+            text=None,
+            caption="📄 نتیجه پردازش",
+            document=document,
+            voice=None,
+            audio=None,
+            video=None,
+            sticker=None,
+            animation=None,
+        )
+        cb = SimpleNamespace(id="cb3", data="action:summarize", from_user=None, message=message)
+
+        result = poller._cb_to_dict(cb)
+
+        assert result["message"]["document"]["file_id"] == "file-xyz"
+        assert result["message"]["document"]["file_name"] == "result.md"
+
 
 class TestPollerOnce:
     @pytest.mark.asyncio

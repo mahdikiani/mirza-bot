@@ -29,6 +29,20 @@ async def get_content(event: CallbackEvent, ctx: BotRuntimeContext) -> str:
             cached = None
         if cached:
             return cached
+
+        file_ref = getattr(event, "file", None)
+        if file_ref and file_ref.file_id:
+            try:
+                downloaded = await ctx.renderer.download_attached_file(event)
+            except Exception:
+                logger.debug(
+                    "Attached-file download failed for message %s", event.message_id
+                )
+                downloaded = None
+            if downloaded:
+                data, _name = downloaded
+                return data.decode("utf-8", errors="replace")
+
         doc_bytes = await ctx.renderer.download_document(
             event.chat_id, event.message_id
         )

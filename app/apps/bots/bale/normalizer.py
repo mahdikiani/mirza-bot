@@ -147,6 +147,7 @@ def normalize_bale_callback(payload: dict[str, Any], bot_name: str) -> CallbackE
     """Normalize a Bale callback payload into CallbackEvent."""
     message = payload.get("message") or {}
     message_text = message.get("text") or message.get("caption")
+    file_ref, _content_type = _file_from_message(message)
     return CallbackEvent(
         platform="bale",
         callback_id=str(payload.get("id", "")),
@@ -157,6 +158,7 @@ def normalize_bale_callback(payload: dict[str, Any], bot_name: str) -> CallbackE
         sender=_sender(payload),
         metadata={"bot_name": bot_name, "platform": "bale"},
         raw=payload,
+        file=file_ref,
     )
 
 

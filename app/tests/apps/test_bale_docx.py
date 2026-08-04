@@ -129,6 +129,37 @@ def test_normalize_bale_callback() -> None:
     assert event.message_text == "result body"
 
 
+def test_normalize_bale_callback_carries_document_file_ref() -> None:
+    """
+    A callback on a file-delivered result carries the document's file_id.
+
+    Needed so get_content() can re-download it directly when the cache is
+    unavailable/expired -- Bale's Bot API has no way to fetch an arbitrary
+    past message by id.
+    """
+    event = normalize_bale_callback(
+        {
+            "id": "cb2",
+            "data": "action:summarize",
+            "message": {
+                "message_id": 3,
+                "chat": {"id": 10},
+                "caption": "📄 نتیجه پردازش",
+                "document": {
+                    "file_id": "file-abc",
+                    "file_name": "result.md",
+                    "mime_type": "text/markdown",
+                    "file_size": 1234,
+                },
+            },
+        },
+        "bale_bot",
+    )
+    assert event.file is not None
+    assert event.file.file_id == "file-abc"
+    assert event.file.file_name == "result.md"
+
+
 @pytest.mark.asyncio
 async def test_process_bale_poll_updates() -> None:
     from apps.bots.runtime.poller import _process_updates
