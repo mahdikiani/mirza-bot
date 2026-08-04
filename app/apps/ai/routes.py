@@ -280,6 +280,24 @@ async def _deliver_result(payload: TaskWebhookPayload, content_type: str) -> Non
     )
 
 
+async def _insufficient_quota_message(user_id: str | None, locale: str) -> str:
+    """Friendly, actionable message for an insufficient-quota task failure."""
+    if not user_id:
+        return text("messages.insufficient_credits", locale=locale)
+    from utils.clients.finance import SaasClient
+
+    try:
+        data = await SaasClient.get_quota("coin", user_id)
+        quota = data.get("quota", 0)
+        unit = data.get("unit") or text("labels.coin_unit", locale=locale)
+    except Exception:
+        logger.exception("Failed to fetch quota for insufficient-quota message")
+        return text("messages.insufficient_credits", locale=locale)
+    return text(
+        "messages.insufficient_quota_task", locale=locale, quota=quota, unit=unit
+    )
+
+
 async def _notify_task_error(payload: TaskWebhookPayload) -> None:
     from apps.ai import pending_tasks
 
@@ -288,22 +306,27 @@ async def _notify_task_error(payload: TaskWebhookPayload) -> None:
     chat_id = meta.get("chat_id")
     message_id = meta.get("message_id")
     bot_name = meta.get("bot_name")
+    user_id = meta.get("user_id")
     locale = meta.get("locale", "fa")
 
+    # task_report/error come straight from the processing service as raw
+    # codes (e.g. "insufficient_quota"), not user-facing text -- showing
+    # them verbatim is meaningless to a user. Swap in a real explanation
+    # (with their actual current balance) for that one recognizable case;
+    # anything else still falls back to the generic task_error message
+    # rather than an unexplained internal string.
+    raw_error = payload.task_report or payload.error or ""
+    insufficient = bool(raw_error) and is_insufficient_credit_error(raw_error)
     error_text = (
-        payload.task_report
-        or payload.error
-        or text("messages.task_error", locale=locale)
+        await _insufficient_quota_message(user_id, locale)
+        if insufficient
+        else (raw_error or text("messages.task_error", locale=locale))
     )
 
     renderer = get_renderer(str(bot_name)) if bot_name else None
     if chat_id and bot_name and renderer:
         try:
-            keyboard = (
-                kb.buy_credits_keyboard()
-                if is_insufficient_credit_error(error_text)
-                else None
-            )
+            keyboard = kb.buy_credits_keyboard() if insufficient else None
             await renderer.edit_message(
                 chat_id,
                 message_id,

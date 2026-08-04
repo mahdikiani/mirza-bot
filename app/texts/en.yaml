@@ -131,6 +131,7 @@ messages:
   model_changed: "Model changed to {model}."
   model_not_allowed: "That model is not allowed."
   insufficient_credits: "You do not have enough credits. Please top up your account."
+  insufficient_quota_task: "You didn't have enough credit for this operation. Your current balance: <b>{quota}</b> {unit}. Please top up your account."
   onboarding_success: "You're all set! Send text, files, voice, video, or links."
   onboarding_error: "There was a problem verifying your phone number. Please try again in a moment."
   contact_mismatch: "Please share your own phone number using the button."

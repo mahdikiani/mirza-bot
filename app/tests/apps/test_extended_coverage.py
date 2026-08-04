@@ -623,6 +623,79 @@ async def test_notify_task_error_insufficient_credits_renderer() -> None:
 
 
 @pytest.mark.asyncio
+async def test_notify_task_error_translates_raw_insufficient_quota_code() -> None:
+    """
+    Raw error codes must be translated, not shown verbatim.
+
+    task_report/error are raw codes from the processing service (e.g.
+    "insufficient_quota"), not user-facing text -- showing that verbatim
+    is meaningless. Must be swapped for a real, translated explanation
+    that includes the user's actual current balance.
+    """
+    from apps.ai.routes import TaskWebhookPayload, _notify_task_error
+    from apps.bots.common.renderer_registry import register_renderer
+
+    renderer = AsyncMock()
+    register_renderer("bot-c", renderer)
+    meta = {
+        "chat_id": 1,
+        "bot_name": "bot-c",
+        "message_id": 2,
+        "locale": "fa",
+        "user_id": "u1",
+    }
+    payload = TaskWebhookPayload(
+        uid="err-2",
+        task_status="error",
+        meta_data={},
+        task_report="insufficient_quota",
+    )
+    with (
+        patch("apps.ai.pending_tasks.remove", AsyncMock()),
+        patch(
+            "apps.ai.pending_tasks.get",
+            AsyncMock(return_value={"meta_data": meta}),
+        ),
+        patch(
+            "utils.clients.finance.SaasClient.get_quota",
+            AsyncMock(return_value={"quota": 12, "unit": "سکه"}),
+        ),
+    ):
+        await _notify_task_error(payload)
+
+    sent_text = renderer.edit_message.await_args.args[2]
+    assert "insufficient_quota" not in sent_text
+    assert "12" in sent_text
+    keyboard = renderer.edit_message.await_args.kwargs["inline_keyboard"]
+    assert keyboard is not None
+
+
+@pytest.mark.asyncio
+async def test_notify_task_error_non_credit_error_shown_as_is() -> None:
+    """A non-credit raw error still passes through without a buy-credits button."""
+    from apps.ai.routes import TaskWebhookPayload, _notify_task_error
+    from apps.bots.common.renderer_registry import register_renderer
+
+    renderer = AsyncMock()
+    register_renderer("bot-d", renderer)
+    meta = {"chat_id": 1, "bot_name": "bot-d", "message_id": 2, "locale": "fa"}
+    payload = TaskWebhookPayload(
+        uid="err-3", task_status="error", meta_data={}, task_report="timeout"
+    )
+    with (
+        patch("apps.ai.pending_tasks.remove", AsyncMock()),
+        patch(
+            "apps.ai.pending_tasks.get",
+            AsyncMock(return_value={"meta_data": meta}),
+        ),
+    ):
+        await _notify_task_error(payload)
+
+    assert renderer.edit_message.await_args.args[2] == "timeout"
+    assert renderer.edit_message.await_args.kwargs["inline_keyboard"] is None
+
+
+@pytest.mark.asyncio
 async def test_deliver_md_result_short_text() -> None:
     from apps.bots.common.delivery import deliver_md_result
 

@@ -121,6 +121,7 @@ messages:
   model_changed: "مدل به {model} تغییر یافت."
   model_not_allowed: "این مدل مجاز نیست."
   insufficient_credits: "موجودی اعتبار شما کافی نیست. لطفاً حساب خود را شارژ کنید."
+  insufficient_quota_task: "اعتبار شما برای این عملیات کافی نبود. موجودی فعلی شما: <b>{quota}</b> {unit}. لطفاً حساب خود را شارژ کنید."
   link_summarize_prompt: |
     [{label}]:
     {content}
