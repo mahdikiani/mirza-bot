@@ -6,7 +6,7 @@ from __future__ import annotations
 import logging
 
 from apps.ai.clients import InsufficientCreditsError
-from apps.bots.common import context, settings
+from apps.bots.common import context, settings, team_invites
 from apps.bots.common import keyboards as kb
 from apps.bots.common.auth_gate import VerifiedUserStatus, resolve_verified_user
 from apps.bots.common.events import MessageEvent
@@ -37,6 +37,60 @@ from utils.texttools import contains_valid_urls
 logger = logging.getLogger(__name__)
 
 
+async def _accept_invite_and_notify(
+    event: MessageEvent,
+    ctx: BotRuntimeContext,
+    locale: str,
+    invite_token: str,
+    usso_uid: str,
+    bot_user: object,
+) -> None:
+    """Redeem a team-invite token and tell the user the outcome."""
+    success, name_or_error, _workspace_id = await team_invites.accept_invite(
+        token=invite_token, invitee_usso_uid=usso_uid, bot_user=bot_user
+    )
+    if success:
+        await ctx.renderer.send_text(
+            event.chat_id,
+            text("messages.team_invite_accepted", locale=locale, name=name_or_error),
+        )
+    else:
+        await ctx.renderer.send_text(
+            event.chat_id,
+            text(f"messages.{name_or_error}", locale=locale),
+        )
+
+
+async def _handle_start_command(
+    event: MessageEvent,
+    ctx: BotRuntimeContext,
+    text_value: str,
+    locale: str,
+) -> None:
+    """Resolve the user, optionally redeem an invite token, show the menu."""
+    invite_token = team_invites.parse_start_payload(text_value)
+    status, verified = await resolve_verified_user(event)
+    if status == VerifiedUserStatus.needs_contact:
+        if invite_token:
+            messenger_id = event_user_id(event)
+            if messenger_id:
+                await team_invites.stash_pending_invite(
+                    event.platform, messenger_id, invite_token
+                )
+        await prompt_contact(ctx, event, locale)
+        return
+    if status == VerifiedUserStatus.no_platform_user:
+        await ctx.renderer.send_text(
+            event.chat_id, text("messages.no_user", locale=locale)
+        )
+        return
+    if invite_token and verified is not None:
+        await _accept_invite_and_notify(
+            event, ctx, locale, invite_token, verified.usso_uid, verified.bot_user
+        )
+    await send_main_menu(ctx, event.chat_id, locale, reply_to=event.message_id)
+
+
 async def _handle_slash_commands(
     event: MessageEvent,
     ctx: BotRuntimeContext,
@@ -45,16 +99,7 @@ async def _handle_slash_commands(
 ) -> bool:
     """Handle /start /help /settings /info /models. Return True if consumed."""
     if is_command(text_value, "/start"):
-        status, _verified = await resolve_verified_user(event)
-        if status == VerifiedUserStatus.needs_contact:
-            await prompt_contact(ctx, event, locale)
-            return True
-        if status == VerifiedUserStatus.no_platform_user:
-            await ctx.renderer.send_text(
-                event.chat_id, text("messages.no_user", locale=locale)
-            )
-            return True
-        await send_main_menu(ctx, event.chat_id, locale, reply_to=event.message_id)
+        await _handle_start_command(event, ctx, text_value, locale)
         return True
 
     if is_command(text_value, "/help"):
@@ -246,7 +291,7 @@ async def handle_message_event(
 
     menu_action = resolve_menu_action(text_value)
     if menu_action and await handle_menu_action(
-        menu_action, event, ctx, locale, usso_uid
+        menu_action, event, ctx, locale, usso_uid, bot_user
     ):
         return
 

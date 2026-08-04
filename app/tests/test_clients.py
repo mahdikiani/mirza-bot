@@ -97,6 +97,67 @@ class TestUssoClient:
         official.create_users.assert_awaited_once()
 
     @pytest.mark.asyncio
+    async def test_create_team_workspace_posts_name(self) -> None:
+        official = AsyncMock()
+        resp = MagicMock()
+        resp.json.return_value = {"uid": "ws-1", "name": "Team X"}
+        official.post = AsyncMock(return_value=resp)
+        client = UssoAccountsClient(official)
+
+        result = await client.create_team_workspace("Team X")
+
+        assert result == {"uid": "ws-1", "name": "Team X"}
+        official.post.assert_awaited_once_with(
+            "/api/sso/v1/workspaces", json={"name": "Team X"}
+        )
+        resp.raise_for_status.assert_called_once()
+
+    @pytest.mark.asyncio
+    async def test_add_workspace_member_posts_user_and_role(self) -> None:
+        official = AsyncMock()
+        resp = MagicMock()
+        resp.json.return_value = {"uid": "user-1", "roles": ["member"]}
+        official.post = AsyncMock(return_value=resp)
+        client = UssoAccountsClient(official)
+
+        result = await client.add_workspace_member("ws-1", "user-1", role="member")
+
+        assert result == {"uid": "user-1", "roles": ["member"]}
+        official.post.assert_awaited_once_with(
+            "/api/sso/v1/workspaces/ws-1/members",
+            json={"user_id": "user-1", "role": "member"},
+        )
+
+    @pytest.mark.asyncio
+    async def test_remove_workspace_member_deletes(self) -> None:
+        official = AsyncMock()
+        resp = MagicMock()
+        official.delete = AsyncMock(return_value=resp)
+        client = UssoAccountsClient(official)
+
+        await client.remove_workspace_member("ws-1", "user-1")
+
+        official.delete.assert_awaited_once_with(
+            "/api/sso/v1/workspaces/ws-1/members/user-1"
+        )
+        resp.raise_for_status.assert_called_once()
+
+    @pytest.mark.asyncio
+    async def test_list_workspace_members_returns_items(self) -> None:
+        official = AsyncMock()
+        resp = MagicMock()
+        resp.json.return_value = {"items": [{"uid": "user-1"}], "total": 1}
+        official.get = AsyncMock(return_value=resp)
+        client = UssoAccountsClient(official)
+
+        result = await client.list_workspace_members("ws-1")
+
+        assert result == [{"uid": "user-1"}]
+        official.get.assert_awaited_once_with(
+            "/api/sso/v1/workspaces/ws-1/users", timeout=20
+        )
+
+    @pytest.mark.asyncio
     async def test_usso_client_context_manager(self) -> None:
         with (
             patch("apps.accounts.clients.OfficialAsyncUssoClient") as mock_official,

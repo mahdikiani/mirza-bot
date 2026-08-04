@@ -98,6 +98,7 @@ ignore = [
     "stdlib-module-shadowing",
     "assert",
     "hardcoded-password-string",  # Tests use fake tokens and API keys.
+    "hardcoded-password-func-arg",
 ]
 
 [tool.ruff.format]

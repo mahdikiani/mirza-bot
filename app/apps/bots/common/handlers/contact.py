@@ -4,9 +4,11 @@ from __future__ import annotations
 
 import logging
 
+from apps.bots.common import team_invites
 from apps.bots.common.events import MessageEvent
-from apps.bots.common.handler_context import BotRuntimeContext
+from apps.bots.common.handler_context import BotRuntimeContext, event_user_id
 from apps.bots.common.handlers.menu import resolve_locale, send_main_menu
+from apps.bots.common.handlers.messages import _accept_invite_and_notify
 from apps.bots.common.onboarding import (
     contact_mismatch_message,
     contact_user_id_matches,
@@ -34,7 +36,7 @@ async def handle_contact_event(
         return
 
     try:
-        await get_or_create_bot_user_from_contact(event, phone_number)
+        bot_user = await get_or_create_bot_user_from_contact(event, phone_number)
     except Exception:
         logger.exception("Failed to complete onboarding for %s", event.chat_id)
         await ctx.renderer.send_text(
@@ -43,6 +45,17 @@ async def handle_contact_event(
             reply_to=event.message_id,
         )
         return
+
+    messenger_id = event_user_id(event)
+    invite_token = (
+        await team_invites.pop_pending_invite(event.platform, messenger_id)
+        if messenger_id
+        else None
+    )
+    if invite_token and bot_user.usso_user_id:
+        await _accept_invite_and_notify(
+            event, ctx, locale, invite_token, bot_user.usso_user_id, bot_user
+        )
 
     await send_main_menu(
         ctx,

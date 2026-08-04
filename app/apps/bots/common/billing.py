@@ -18,10 +18,12 @@ def products_per_page() -> int:
     return DEFAULT_PRODUCTS_PER_PAGE
 
 
-async def fetch_balance(user_id: str, locale: str = "fa") -> str:
-    """Return formatted balance message."""
+async def fetch_balance(
+    user_id: str, locale: str = "fa", workspace_id: str | None = None
+) -> str:
+    """Return formatted balance message for the active workspace, if any."""
     try:
-        data = await SaasClient.get_quota("coin", user_id)
+        data = await SaasClient.get_quota("coin", user_id, workspace_id=workspace_id)
         quota = data.get("quota", 0)
         unit = data.get("unit") or text("labels.coin_unit", locale=locale)
         return text("messages.balance", locale=locale, quota=quota, unit=unit)

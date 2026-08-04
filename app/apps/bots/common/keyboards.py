@@ -52,6 +52,9 @@ def main_menu_keyboard() -> ReplyKeyboard:
                 ReplyButton(button("settings")),
                 ReplyButton(button("help")),
             ],
+            [
+                ReplyButton(button("team")),
+            ],
         ]
     )
 
@@ -196,6 +199,51 @@ def products_keyboard(
         )
     if nav:
         rows.append(nav)
+    return InlineKeyboard(rows=rows)
+
+
+def team_menu_keyboard(*, is_personal: bool, is_owner: bool) -> InlineKeyboard:
+    """Build the team-workspace menu (create/invite/members/switch)."""
+    rows: list[list[InlineButton]] = []
+    if is_owner:
+        rows.append([
+            InlineButton(button("team_invite"), callback_data="team:invite"),
+        ])
+        rows.append([
+            InlineButton(button("team_members"), callback_data="team:members"),
+        ])
+    elif not is_personal:
+        rows.append([
+            InlineButton(button("team_members"), callback_data="team:members"),
+        ])
+    rows.append([
+        InlineButton(button("team_create"), callback_data="team:create"),
+    ])
+    rows.append([
+        InlineButton(button("team_switch"), callback_data="team:switch:menu"),
+    ])
+    return InlineKeyboard(rows=rows)
+
+
+def team_switch_keyboard(
+    *,
+    known_workspaces: dict[str, str],
+    active_id: str | None,
+    usso_uid: str,
+) -> InlineKeyboard:
+    """Build a keyboard listing personal + known team workspaces to switch into."""
+    is_personal_active = not active_id or active_id == usso_uid
+    rows: list[list[InlineButton]] = [[
+        InlineButton(
+            f"{'✅ ' if is_personal_active else ''}{button('team_personal')}",
+            callback_data="team:switch:personal",
+        )
+    ]]
+    for workspace_id, name in known_workspaces.items():
+        mark = "✅ " if workspace_id == active_id else ""
+        rows.append([
+            InlineButton(f"{mark}{name}", callback_data=f"team:switch:{workspace_id}")
+        ])
     return InlineKeyboard(rows=rows)
 
 

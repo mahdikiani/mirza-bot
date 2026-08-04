@@ -28,6 +28,12 @@ buttons:
   info: "ℹ️ Info"
   change_model: "Change Model"
   convert: "🔄 Convert"
+  team: "🏢 Team"
+  team_invite: "➕ Invite Member"
+  team_members: "👥 List Members"
+  team_create: "🏗 Create New Team Workspace"
+  team_switch: "🔄 Switch Workspace"
+  team_personal: "👤 Personal Workspace"
   word: "📄 Word (DOCX)"
   markdown: "📝 Markdown"
   audio_read: "🔊 Audio Read"
@@ -132,6 +138,35 @@ messages:
   convert_prompt: "Convert to:"
   task_error: "Processing failed. Please try again."
   task_timeout: "Processing took too long. Please try again."
+  team_menu: |
+    🏢 Active workspace: <b>{name}</b>
+
+    From here you can create a team workspace, invite members, or switch between your workspaces.
+  team_create_error: "Could not create the workspace. Please try again."
+  team_created: "Workspace \"{name}\" was created and is now active. Use the team menu to invite members."
+  team_invite_not_owner: "Only the workspace's creator can invite members. Create or switch to a team workspace first."
+  team_invite_link: |
+    Send this link to invite someone to "{name}":
+
+    {link}
+
+    This link expires in {days} days and can only be used once.
+  team_members_none: "This is your personal workspace and has no members besides you."
+  team_members_error: "Could not fetch the member list."
+  team_members_list: |
+    Workspace members:
+
+    {list}
+  team_switch_prompt: "Which workspace would you like to switch to?"
+  team_switched_personal: "Switched back to your personal workspace."
+  team_switch_error: "Could not switch workspace. Please try again."
+  team_switch_not_member: "You are no longer a member of this workspace."
+  team_switched: "Active workspace switched to \"{name}\"."
+  team_invite_accepted: "You joined the \"{name}\" workspace, which is now your active workspace."
+  invite_not_found: "This invite link is not valid."
+  invite_already_used: "This invite link has already been used."
+  invite_expired: "This invite link has expired."
+  invite_join_failed: "Could not join the workspace. Please try again."
 
 labels:
   youtube: "YouTube"
@@ -151,3 +186,7 @@ labels:
   instagram_label: "Instagram — {shortcode}"
   account_label: "Account"
   product_default: "Product"
+  personal_workspace: "Personal"
+  team_workspace: "Team"
+  default_team_name: "{name}'s Team"
+  default_team_name_fallback: "Team Workspace"

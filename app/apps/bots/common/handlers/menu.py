@@ -5,6 +5,7 @@ from __future__ import annotations
 
 from apps.bots.common import billing, settings
 from apps.bots.common import keyboards as kb
+from apps.bots.common.callbacks.team import send_team_menu
 from apps.bots.common.events import MessageEvent
 from apps.bots.common.handler_context import BotRuntimeContext, event_user_id
 from apps.bots.common.onboarding import detect_locale
@@ -42,6 +43,7 @@ async def handle_menu_action(
     ctx: BotRuntimeContext,
     locale: str,
     usso_uid: str,
+    bot_user: object = None,
 ) -> bool:
     """Handle a main-menu text action; return True if consumed."""
     if action == "help":
@@ -78,7 +80,10 @@ async def handle_menu_action(
         return True
 
     if action in {"account", "balance"}:
-        balance_msg = await billing.fetch_balance(usso_uid, locale=locale)
+        workspace_id = getattr(bot_user, "telegram_workspace_id", None)
+        balance_msg = await billing.fetch_balance(
+            usso_uid, locale=locale, workspace_id=workspace_id
+        )
         await ctx.renderer.send_text(
             event.chat_id,
             balance_msg,
@@ -98,6 +103,12 @@ async def handle_menu_action(
 
     if action in {"purchase", "menu"}:
         await show_products(event, ctx, locale, page=0)
+        return True
+
+    if action == "team" and bot_user is not None:
+        await send_team_menu(
+            ctx, event.chat_id, locale, bot_user, usso_uid, reply_to=event.message_id
+        )
         return True
 
     return False

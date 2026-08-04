@@ -47,12 +47,14 @@ class SaasClient:
     """Client for services/saas — quota enquiry."""
 
     @staticmethod
-    async def get_quota(asset: str, user_id: str) -> dict:
+    async def get_quota(
+        asset: str, user_id: str, workspace_id: str | None = None
+    ) -> dict:
         """Return QuotasResponseSchema: {asset, quota, unit, user_id, variant}."""
+        params: dict[str, str] = {"asset": asset, "user_id": user_id}
+        if workspace_id:
+            params["workspace_id"] = workspace_id
         async with service_client(Settings.saas_base_url, Settings.saas_api_key) as c:
-            resp = await c.get(
-                "/enrollments/quotas",
-                params={"asset": asset, "user_id": user_id},
-            )
+            resp = await c.get("/enrollments/quotas", params=params)
             resp.raise_for_status()
             return resp.json()

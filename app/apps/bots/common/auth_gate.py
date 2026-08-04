@@ -54,7 +54,7 @@ async def _sync_usso_state_and_workspace(
     bot_user: models.BotUser, usso_user: object
 ) -> None:
     """
-    Sync usso_user_id/usso_synced and telegram_workspace_id.
+    Sync usso_user_id/usso_synced and default telegram_workspace_id.
 
     workspace_id comes straight off the already-fetched usso_user (USSO
     auto-provisions a user's personal workspace, uid == user.uid, on user
@@ -62,6 +62,14 @@ async def _sync_usso_state_and_workspace(
     no personal workspace yet (e.g. created before it existed) just has
     workspace_id=None here, and billing/visibility fall back to their
     personal (non-workspace) context, same as today.
+
+    This only fills in a *first-time default* -- it never overwrites an
+    already-set telegram_workspace_id. usso_user here only carries the
+    personal workspace's id (see _to_user_data), so blindly syncing it on
+    every message would silently switch a user back out of a shared team
+    workspace (see apps.bots.common.team_invites / callbacks.team) the
+    moment this runs. Explicit switches go through team:switch, which does
+    a fresh full-membership check against workspace_ids instead.
     """
     usso_uid = str(usso_user.uid)
     workspace_id = getattr(usso_user, "workspace_id", None)
@@ -70,7 +78,7 @@ async def _sync_usso_state_and_workspace(
         bot_user.usso_user_id = usso_uid
         bot_user.usso_synced = True
         dirty = True
-    if workspace_id and bot_user.telegram_workspace_id != workspace_id:
+    if workspace_id and bot_user.telegram_workspace_id is None:
         bot_user.telegram_workspace_id = workspace_id
         dirty = True
     if dirty:

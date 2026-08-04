@@ -61,6 +61,47 @@ class UssoAccountsClient:
         )
         resp.raise_for_status()
 
+    async def create_team_workspace(self, name: str) -> dict:
+        """
+        Create an org-style shared workspace (admin-scoped, no KYC).
+
+        Requires the configured API key to hold ``admin:sso/workspace``;
+        USSO's create_workspace() routes admin-scoped callers straight to
+        create_workspace_by_admin(), skipping company-registry verification.
+        Does not add anyone as a member -- follow up with add_workspace_member.
+        """
+        resp = await self._client.post(
+            "/api/sso/v1/workspaces", json={"name": name}
+        )
+        resp.raise_for_status()
+        return resp.json()
+
+    async def add_workspace_member(
+        self, workspace_id: str, user_id: str, role: str = "member"
+    ) -> dict:
+        """Add a user to a workspace with the given role."""
+        resp = await self._client.post(
+            f"/api/sso/v1/workspaces/{workspace_id}/members",
+            json={"user_id": user_id, "role": role},
+        )
+        resp.raise_for_status()
+        return resp.json()
+
+    async def remove_workspace_member(self, workspace_id: str, user_id: str) -> None:
+        """Remove a user from a workspace."""
+        resp = await self._client.delete(
+            f"/api/sso/v1/workspaces/{workspace_id}/members/{user_id}"
+        )
+        resp.raise_for_status()
+
+    async def list_workspace_members(self, workspace_id: str) -> list[dict]:
+        """List members of a workspace."""
+        resp = await self._client.get(
+            f"/api/sso/v1/workspaces/{workspace_id}/users", timeout=20
+        )
+        resp.raise_for_status()
+        return resp.json().get("items", [])
+
     async def get_profile(self, user_id: str) -> Profile:
         """Return a user profile from USSO."""
         resp = await self._client.get(f"/api/sso/v1/profiles/{user_id}", timeout=20)

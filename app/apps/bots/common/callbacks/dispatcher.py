@@ -7,6 +7,7 @@ from apps.bots.common.callbacks.billing import handle_billing_callback
 from apps.bots.common.callbacks.chat import handle_action_callback, handle_chat_callback
 from apps.bots.common.callbacks.convert import handle_convert_callback
 from apps.bots.common.callbacks.prefs import handle_settings_callback
+from apps.bots.common.callbacks.team import handle_team_callback
 from apps.bots.common.events import CallbackEvent
 from apps.bots.common.handler_context import BotRuntimeContext, event_user_id
 from utils.i18n import text
@@ -33,6 +34,8 @@ async def handle_callback_event(
     data = event.data or ""
 
     if await handle_settings_callback(data, event, ctx, locale, user_id):
+        return
+    if await handle_team_callback(data, event, ctx, locale):
         return
     if await handle_billing_callback(data, event, ctx, locale):
         return

@@ -90,6 +90,36 @@ async def test_resolve_skips_save_when_already_in_sync() -> None:
 
 
 @pytest.mark.asyncio
+async def test_resolve_does_not_clobber_active_team_workspace() -> None:
+    """
+    A user already switched into a team workspace must not be reset.
+
+    usso_user only ever carries the *personal* workspace id -- syncing it
+    unconditionally on every message would silently kick a user back out
+    of a shared team workspace (see callbacks.team) they explicitly
+    switched into.
+    """
+    bot_user = _bot_user(telegram_workspace_id="team-ws-1")
+    usso = SimpleNamespace(uid="usso-1", workspace_id="usso-1")
+    with (
+        patch(
+            "apps.bots.common.auth_gate.get_bot_user",
+            AsyncMock(return_value=bot_user),
+        ),
+        patch(
+            "apps.bots.common.auth_gate.get_existing_usso_user",
+            AsyncMock(return_value=usso),
+        ),
+        patch.object(BotUser, "save", AsyncMock()) as mock_save,
+    ):
+        status, verified = await resolve_verified_user(_event())
+    assert status == VerifiedUserStatus.ok
+    assert verified is not None
+    assert bot_user.telegram_workspace_id == "team-ws-1"
+    mock_save.assert_not_awaited()
+
+
+@pytest.mark.asyncio
 async def test_resolve_missing_workspace_does_not_block_login() -> None:
     """A user with no personal workspace yet must not fail the whole request."""
     bot_user = _bot_user()

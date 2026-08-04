@@ -28,6 +28,12 @@ buttons:
   info: "ℹ️ اطلاعات"
   change_model: "تغییر مدل"
   convert: "🔄 تبدیل"
+  team: "🏢 تیم"
+  team_invite: "➕ دعوت عضو جدید"
+  team_members: "👥 لیست اعضا"
+  team_create: "🏗 ساخت فضای کاری تیمی جدید"
+  team_switch: "🔄 تغییر فضای کاری"
+  team_personal: "👤 فضای شخصی"
   word: "📄 Word (DOCX)"
   markdown: "📝 Markdown"
   audio_read: "🔊 خواندن صوتی"
@@ -134,8 +140,41 @@ messages:
   session_reopened: "مکالمه '{title}' باز شد."
   session_archived: "مکالمه '{title}' بایگانی شد."
   select_session: "روی یک مکالمه کلیک کنید:"
+  team_menu: |
+    🏢 فضای کاری فعال: <b>{name}</b>
+
+    از این‌جا می‌توانید فضای کاری تیمی بسازید، عضو دعوت کنید یا بین فضاهای کاری خود جابه‌جا شوید.
+  team_create_error: "خطا در ساخت فضای کاری. لطفا دوباره تلاش کنید."
+  team_created: "فضای کاری «{name}» ساخته شد و اکنون فعال است. برای دعوت اعضا از منوی تیم استفاده کنید."
+  team_invite_not_owner: "فقط سازنده‌ی فضای کاری می‌تواند عضو دعوت کند. ابتدا یک فضای کاری تیمی بسازید یا به آن سوییچ کنید."
+  team_invite_link: |
+    برای دعوت به «{name}» این لینک را برای فرد موردنظر بفرستید:
+
+    {link}
+
+    این لینک تا {days} روز دیگر معتبر است و فقط یک‌بار قابل استفاده است.
+  team_members_none: "این فضای کاری، شخصی است و عضوی جز شما ندارد."
+  team_members_error: "خطا در دریافت لیست اعضا."
+  team_members_list: |
+    اعضای فضای کاری:
+
+    {list}
+  team_switch_prompt: "به کدام فضای کاری بروید؟"
+  team_switched_personal: "به فضای شخصی خود بازگشتید."
+  team_switch_error: "خطا در تعویض فضای کاری. لطفا دوباره تلاش کنید."
+  team_switch_not_member: "شما دیگر عضو این فضای کاری نیستید."
+  team_switched: "فضای کاری فعال به «{name}» تغییر یافت."
+  team_invite_accepted: "به فضای کاری «{name}» پیوستید و اکنون این فضای کاری فعال شماست."
+  invite_not_found: "این لینک دعوت معتبر نیست."
+  invite_already_used: "این لینک دعوت قبلاً استفاده شده است."
+  invite_expired: "این لینک دعوت منقضی شده است."
+  invite_join_failed: "خطا در پیوستن به فضای کاری. لطفا دوباره تلاش کنید."
 
 labels:
+  personal_workspace: "شخصی"
+  team_workspace: "تیمی"
+  default_team_name: "تیم {name}"
+  default_team_name_fallback: "فضای کاری تیمی"
   youtube: "یوتیوب"
   twitter: "توییتر/X"
   instagram: "اینستاگرام"
