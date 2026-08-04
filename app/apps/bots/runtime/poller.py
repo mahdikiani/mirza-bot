@@ -193,7 +193,13 @@ def _cb_to_dict(cb: object) -> dict:
         "message": {
             "message_id": getattr(msg, "message_id", 0),
             "chat": {"id": getattr(getattr(msg, "chat", None), "id", 0)},
-            "text": getattr(msg, "text", ""),
+            "text": getattr(msg, "text", "") or "",
+            # Action-button results are sent as a document with a short
+            # fixed caption, not the actual result -- normalize_bale_callback
+            # falls back to this when the redis-cached content is unavailable
+            # (e.g. expired), so it must at least be present, even though for
+            # that case it won't be the real content either.
+            "caption": getattr(msg, "caption", "") or "",
         }
         if msg
         else {},

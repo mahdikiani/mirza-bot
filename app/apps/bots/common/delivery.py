@@ -105,6 +105,35 @@ async def deliver_result(
 
         return sent_id
 
+    return await _deliver_as_file(
+        renderer,
+        chat_id=chat_id,
+        message_id=message_id,
+        result=result,
+        content_type=content_type,
+        user_id=user_id,
+        locale=locale,
+        file_name_hint=file_name_hint,
+        include_actions=include_actions,
+        processing_message_id=processing_message_id,
+        docx_url=docx_url,
+    )
+
+
+async def _deliver_as_file(
+    renderer: object,
+    *,
+    chat_id: int | str,
+    message_id: int | str,
+    result: str,
+    content_type: str,
+    user_id: str | None,
+    locale: str,
+    file_name_hint: str | None,
+    include_actions: bool,
+    processing_message_id: int | str | None,
+    docx_url: str | None,
+) -> int | str | None:
     base_name = _result_name(content_type, user_id, file_name_hint)
     if not base_name.lower().endswith(".md"):
         base_name = base_name.rsplit(".", 1)[0] if "." in base_name else base_name
@@ -131,11 +160,22 @@ async def deliver_result(
             inline_keyboard=keyboard,
             reply_to=message_id,
         )
-        await _try_delete(renderer, chat_id, processing_message_id)
-        return getattr(sent, "id", None) if sent else None
     except Exception:
         logger.exception("Failed to send result document")
         return None
+
+    await _try_delete(renderer, chat_id, processing_message_id)
+    sent_id = getattr(sent, "id", None) or getattr(sent, "message_id", None)
+    if sent_id is not None:
+        try:
+            # Same as the inline-text branch above: action buttons on this
+            # message need the raw Markdown back later, and re-reading a
+            # sent document's caption/text never recovers it (that's the
+            # short "processing" caption, not the actual result).
+            await result_content_cache.save(sent_id, result)
+        except Exception:
+            logger.debug("Failed to cache result content for message %s", sent_id)
+    return sent_id
 
 
 async def deliver_docx_first_result(

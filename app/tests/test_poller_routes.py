@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
+from types import SimpleNamespace
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import httpx
@@ -20,6 +21,43 @@ from apps.bots.runtime import poller
 @dataclass
 class MockUpdate:
     update_id: int
+
+
+class TestCbToDict:
+    def test_cb_to_dict_propagates_caption_for_document_messages(self) -> None:
+        """
+        A result delivered as a file has its content in `caption`, not `text`.
+
+        Dropping caption here (as the poller once did) left
+        normalize_bale_callback's `text or caption` fallback with nothing,
+        so action buttons on file-delivered results always came back empty
+        once the redis content cache wasn't the source that served them.
+        """
+        chat = SimpleNamespace(id=42)
+        from_user = SimpleNamespace(id=7)
+        message = SimpleNamespace(
+            message_id=99, chat=chat, text=None, caption="📄 نتیجه پردازش"
+        )
+        cb = SimpleNamespace(id="cb1", data="action:summarize", from_user=from_user, message=message)
+
+        result = poller._cb_to_dict(cb)
+
+        assert result["message"]["caption"] == "📄 نتیجه پردازش"
+        assert result["message"]["text"] == ""
+        assert result["message_id"] == 99
+        assert result["chat_id"] == 42
+
+    def test_cb_to_dict_propagates_text_for_plain_messages(self) -> None:
+        chat = SimpleNamespace(id=1)
+        message = SimpleNamespace(message_id=5, chat=chat, text="hello", caption=None)
+        cb = SimpleNamespace(
+            id="cb2", data="settings:lang:fa", from_user=None, message=message
+        )
+
+        result = poller._cb_to_dict(cb)
+
+        assert result["message"]["text"] == "hello"
+        assert result["message"]["caption"] == ""
 
 
 class TestPollerOnce:

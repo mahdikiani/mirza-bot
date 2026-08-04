@@ -690,6 +690,46 @@ async def test_deliver_md_result_long_text_uploads_file() -> None:
 
 
 @pytest.mark.asyncio
+async def test_deliver_md_result_long_text_caches_raw_markdown_too() -> None:
+    """
+    Action buttons on a file-delivered (>4096 char) result need cached content too.
+
+    Only the caption ("📄 Result file") was ever recoverable from the sent
+    message itself -- the file-upload branch skipped result_content_cache
+    entirely, unlike the short-text branch and deliver_docx_first_result,
+    leaving every action button (summarize/translate/...) on a long result
+    with nothing to read back once the redis cache lookup was the only
+    remaining source (e.g. on platforms whose renderer can't re-fetch an
+    arbitrary past message, like Bale).
+    """
+    from apps.bots.common import media_flow
+    from apps.bots.common.delivery import deliver_md_result
+
+    renderer = AsyncMock()
+    renderer.send_document.return_value = MagicMock(id=777)
+    long_text = "x" * (media_flow.MD_FILE_THRESHOLD_CHARS + 1)
+    with (
+        patch(
+            "apps.bots.common.delivery.MediaClient.upload",
+            AsyncMock(return_value="https://media.test/r.md"),
+        ),
+        patch(
+            "apps.bots.common.delivery.result_content_cache.save", AsyncMock()
+        ) as save_mock,
+    ):
+        await deliver_md_result(
+            renderer,
+            chat_id=1,
+            message_id=2,
+            result=long_text,
+            content_type="voice",
+            user_id="u1",
+            locale="fa",
+        )
+    save_mock.assert_awaited_once_with(777, long_text)
+
+
+@pytest.mark.asyncio
 async def test_deliver_md_result_caches_raw_markdown_for_convert_buttons() -> None:
     """
     Cache raw Markdown for convert-to-Word/Markdown buttons.
