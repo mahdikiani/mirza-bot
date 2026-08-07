@@ -45,6 +45,7 @@ async def handle_inline_query_event(
                 workspace_id=(
                     verified.bot_user.telegram_workspace_id or verified.usso_uid
                 ),
+                audit_source="telegram_inline",
             )
         except InsufficientCreditsError:
             response = text("messages.insufficient_credits", locale=locale)

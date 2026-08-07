@@ -6,6 +6,7 @@ Verified against live OpenAPI at https://toolkit.uln.me/api/ai/v1/openapi.json
 
 from __future__ import annotations
 
+import logging
 from typing import Any
 
 from server.config import Settings
@@ -14,6 +15,8 @@ from utils.clients.toolkit import (
     completed_result_or_raise,
     toolkit_client,
 )
+
+logger = logging.getLogger(__name__)
 
 
 class InsufficientCreditsError(RuntimeError):
@@ -252,6 +255,7 @@ class CompletionClient:
         model: str | None = None,
         user_id: str | None = None,
         workspace_id: str | None = None,
+        audit_source: str = "unspecified",
     ) -> str:
         """
         Send messages to /chat/completions and return assistant content.
@@ -268,13 +272,36 @@ class CompletionClient:
         if workspace_id:
             body["workspace_id"] = workspace_id
 
+        logger.info(
+            "completion_attribution started source=%s user_id=%s workspace_id=%s "
+            "message_count=%d",
+            audit_source,
+            user_id,
+            workspace_id,
+            len(messages),
+        )
         async with toolkit_client(request_timeout=120.0) as c:
             # ai-toolkit mounts its OpenAI-compatible router under /openai/v1
             # (apps/openai_compat/routes.py), not at the bare toolkit base URL.
             resp = await c.post("/openai/v1/chat/completions", json=body)
             if resp.status_code == 402:
+                logger.warning(
+                    "completion_attribution rejected source=%s user_id=%s "
+                    "workspace_id=%s status_code=402",
+                    audit_source,
+                    user_id,
+                    workspace_id,
+                )
                 raise InsufficientCreditsError()
             resp.raise_for_status()
+            logger.info(
+                "completion_attribution completed source=%s user_id=%s "
+                "workspace_id=%s status_code=%s",
+                audit_source,
+                user_id,
+                workspace_id,
+                resp.status_code,
+            )
             data = resp.json()
             choices = data.get("choices") or []
             if not choices:

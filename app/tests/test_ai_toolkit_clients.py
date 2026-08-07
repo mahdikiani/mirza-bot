@@ -239,6 +239,35 @@ async def test_completion_complete_includes_user_and_workspace_id() -> None:
 
 
 @pytest.mark.asyncio
+async def test_completion_logs_attribution_without_message_content(
+) -> None:
+    client = AsyncMock()
+    client.post = AsyncMock(
+        return_value=_response({"choices": [{"message": {"content": "answer"}}]})
+    )
+
+    with (
+        patch("apps.ai.clients.logger.info") as log_info,
+        patch("apps.ai.clients.toolkit_client", return_value=_client_ctx(client)),
+    ):
+        await CompletionClient.complete(
+            messages=[{"role": "user", "content": "private prompt text"}],
+            user_id="user-log-1",
+            workspace_id="workspace-log-1",
+            audit_source="file_caption",
+        )
+
+    assert log_info.call_count == 2
+    logged_values = repr(log_info.call_args_list)
+    assert "completion_attribution started" in logged_values
+    assert "completion_attribution completed" in logged_values
+    assert "file_caption" in logged_values
+    assert "user-log-1" in logged_values
+    assert "workspace-log-1" in logged_values
+    assert "private prompt text" not in logged_values
+
+
+@pytest.mark.asyncio
 async def test_completion_complete_omits_user_and_workspace_id_when_absent() -> None:
     client = AsyncMock()
     client.post = AsyncMock(

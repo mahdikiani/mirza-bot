@@ -52,6 +52,7 @@ async def handle_file_event(
                     sender_id=event.sender.id if event.sender else None,
                     user_id=user_id,
                     workspace_id=workspace_id or user_id,
+                    audit_source="file_caption",
                     locale=locale,
                 )
                 sent = await ctx.renderer.send_text(

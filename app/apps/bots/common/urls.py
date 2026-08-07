@@ -33,6 +33,7 @@ async def _reply_webpage_completion(
                 sender_id=event.sender.id if event.sender else None,
                 user_id=user_id,
                 workspace_id=workspace_id or user_id,
+                audit_source="webpage_prompt",
                 locale=locale,
             )
         except InsufficientCreditsError:

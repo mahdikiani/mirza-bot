@@ -122,6 +122,7 @@ async def _apply_user_prompt(
             sender_id=meta.get("platform_user_id") or meta.get("telegram_user_id"),
             user_id=meta.get("user_id"),
             workspace_id=meta.get("workspace_id") or meta.get("user_id"),
+            audit_source=f"{meta.get('content_type') or 'task'}_webhook_prompt",
             locale=str(locale),
         )
     except InsufficientCreditsError:

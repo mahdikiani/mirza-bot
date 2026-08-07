@@ -29,6 +29,7 @@ async def test_extracted_content_completion_forwards_billing_identity() -> None:
     assert result == "answer"
     assert complete.await_args.kwargs["user_id"] == "usso-user-1"
     assert complete.await_args.kwargs["workspace_id"] == "workspace-1"
+    assert complete.await_args.kwargs["audit_source"] == "extracted_content"
 
 
 @pytest.mark.asyncio
@@ -55,6 +56,7 @@ async def test_webhook_prompt_uses_trusted_task_identity() -> None:
     assert result == "answer"
     assert completion.await_args.kwargs["user_id"] == "usso-user-2"
     assert completion.await_args.kwargs["workspace_id"] == "workspace-2"
+    assert completion.await_args.kwargs["audit_source"] == "task_webhook_prompt"
 
 
 @pytest.mark.asyncio
@@ -96,6 +98,7 @@ async def test_file_caption_uses_handler_identity() -> None:
 
     assert completion.await_args.kwargs["user_id"] == "usso-user-3"
     assert completion.await_args.kwargs["workspace_id"] == "workspace-3"
+    assert completion.await_args.kwargs["audit_source"] == "file_caption"
 
 
 @pytest.mark.asyncio
@@ -135,6 +138,7 @@ async def test_webpage_prompt_uses_handler_identity() -> None:
 
     assert completion.await_args.kwargs["user_id"] == "usso-user-4"
     assert completion.await_args.kwargs["workspace_id"] == "workspace-4"
+    assert completion.await_args.kwargs["audit_source"] == "webpage_prompt"
 
 
 @pytest.mark.asyncio
@@ -181,6 +185,7 @@ async def test_inline_completion_uses_verified_user_and_active_workspace() -> No
 
     assert complete.await_args.kwargs["user_id"] == "verified-usso-user"
     assert complete.await_args.kwargs["workspace_id"] == "verified-workspace"
+    assert complete.await_args.kwargs["audit_source"] == "telegram_inline"
     renderer.answer_inline_query.assert_awaited_once_with(
         "query-1", "answer", raw_event=event.raw
     )

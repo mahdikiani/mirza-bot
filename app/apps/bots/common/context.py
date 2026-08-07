@@ -273,7 +273,11 @@ async def chat_completion(
         model = await get_user_model(sender_id)
     try:
         return await CompletionClient.complete(
-            messages, model=model, user_id=usso_uid, workspace_id=workspace_id
+            messages,
+            model=model,
+            user_id=usso_uid,
+            workspace_id=workspace_id,
+            audit_source="reply_chat",
         )
     except InsufficientCreditsError:
         raise
@@ -291,6 +295,7 @@ async def extracted_content_completion(
     sender_id: int | str | None = None,
     user_id: str | None = None,
     workspace_id: str | None = None,
+    audit_source: str = "extracted_content",
     locale: str = "fa",
 ) -> str:
     """Answer a prompt after the referenced attachment has been extracted."""
@@ -306,6 +311,7 @@ async def extracted_content_completion(
             model=model,
             user_id=user_id,
             workspace_id=workspace_id,
+            audit_source=audit_source,
         )
     except InsufficientCreditsError:
         raise
