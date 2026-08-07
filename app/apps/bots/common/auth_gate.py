@@ -72,7 +72,11 @@ async def _sync_usso_state_and_workspace(
     a fresh full-membership check against workspace_ids instead.
     """
     usso_uid = str(usso_user.uid)
-    workspace_id = getattr(usso_user, "workspace_id", None)
+    # USSO may not return a provisioned personal workspace for older users.
+    # Billing and AI processing still need one stable personal scope, so the
+    # user's own UID is the canonical fallback. An explicitly selected team
+    # workspace remains untouched below.
+    workspace_id = getattr(usso_user, "workspace_id", None) or usso_uid
     dirty = False
     if bot_user.usso_user_id != usso_uid or not bot_user.usso_synced:
         bot_user.usso_user_id = usso_uid

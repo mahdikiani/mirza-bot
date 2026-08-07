@@ -120,8 +120,8 @@ async def test_resolve_does_not_clobber_active_team_workspace() -> None:
 
 
 @pytest.mark.asyncio
-async def test_resolve_missing_workspace_does_not_block_login() -> None:
-    """A user with no personal workspace yet must not fail the whole request."""
+async def test_resolve_missing_workspace_uses_personal_scope() -> None:
+    """A missing personal workspace falls back to the user's own scope."""
     bot_user = _bot_user()
     usso = SimpleNamespace(uid="usso-1", workspace_id=None)
     with (
@@ -138,7 +138,7 @@ async def test_resolve_missing_workspace_does_not_block_login() -> None:
         status, verified = await resolve_verified_user(_event())
     assert status == VerifiedUserStatus.ok
     assert verified is not None
-    assert bot_user.telegram_workspace_id is None
+    assert bot_user.telegram_workspace_id == "usso-1"
 
 
 @pytest.mark.asyncio
