@@ -218,7 +218,17 @@ async def submit_webpage(
         meta_data=meta_data,
         workspace_id=workspace_id,
     )
-    return str(result.get("uid") or result.get("id") or "") or None
+    task_uid = str(result.get("uid") or result.get("id") or "") or None
+    if task_uid:
+        from apps.ai.pending_tasks import add as add_pending_task
+
+        await add_pending_task(
+            task_uid=task_uid,
+            task_type="webpage",
+            user_id=user_id,
+            meta_data=meta_data,
+        )
+    return task_uid
 
 
 async def submit_file_bytes(
@@ -321,9 +331,10 @@ async def submit_url(
             )
         return task_uid
 
-    # Webpage URLs are handled sync via Jina in urls.handle_urls_message.
-    # Keep WebpageClient/submit_webpage available for webhook/poller only.
-    logger.warning("submit_url called for non-async kind %s: %s", kind, url)
+    if kind == LinkKind.webpage:
+        return await submit_webpage(url, user_id, meta, workspace_id)
+
+    logger.warning("submit_url called for unsupported kind %s: %s", kind, url)
     return None
 
 

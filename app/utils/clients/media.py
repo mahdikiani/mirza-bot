@@ -57,7 +57,8 @@ class MediaClient:
                 f"/f/{file_id}",
                 params={"signed_url": True},
             )
-            signed_resp.raise_for_status()
+            if not signed_resp.is_redirect:
+                signed_resp.raise_for_status()
             url: str = signed_resp.headers.get("location", "")
             if not url:
                 raise ValueError(

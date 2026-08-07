@@ -245,14 +245,17 @@ async def test_onboarding_falls_back_locally_when_usso_unavailable() -> None:
 
 
 @pytest.mark.asyncio
-async def test_media_flow_submit_url_webpage_not_async() -> None:
-    """Webpage is sync-Jina in urls.py; submit_url must not invent an async path."""
+async def test_media_flow_submit_url_webpage_uses_toolkit() -> None:
+    """Webpages use the metered async AI Toolkit path."""
 
     event = MessageEvent(chat_id=1, message_id=2, sender=Sender(id=3))
-    with patch(
-        "apps.bots.common.media_flow.WebpageClient.submit",
-        AsyncMock(return_value={"uid": "wp-2"}),
-    ) as submit_mock:
+    with (
+        patch(
+            "apps.bots.common.media_flow.WebpageClient.submit",
+            AsyncMock(return_value={"uid": "wp-2"}),
+        ) as submit_mock,
+        patch("apps.ai.pending_tasks.add", AsyncMock()) as add_pending,
+    ):
         uid = await media_flow.submit_url(
             event=event,
             bot_name="bot",
@@ -260,8 +263,9 @@ async def test_media_flow_submit_url_webpage_not_async() -> None:
             response_message_id=2,
             user_id="u1",
         )
-    assert uid is None
-    submit_mock.assert_not_awaited()
+    assert uid == "wp-2"
+    submit_mock.assert_awaited_once()
+    add_pending.assert_awaited_once()
 
 
 @pytest.mark.asyncio
@@ -1201,13 +1205,9 @@ async def test_handler_multi_link_webpages_only() -> None:
             AsyncMock(return_value=("usso-1", _verified_user())),
         ),
         patch(
-            "apps.bots.common.urls.media_flow.fetch_webpages_parallel",
-            AsyncMock(return_value=["content a", "content b"]),
-        ),
-        patch(
-            "apps.bots.common.urls.context.chat_completion",
-            AsyncMock(return_value="summary"),
-        ),
+            "apps.bots.common.urls.media_flow.submit_url",
+            AsyncMock(side_effect=["wp-a", "wp-b"]),
+        ) as submit_url,
     ):
         await handle_message_event(event, _ctx(renderer))
-    assert "edit_message" in renderer.events
+    assert submit_url.await_count == 2

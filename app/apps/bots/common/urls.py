@@ -1,4 +1,4 @@
-"""URL message handling (webpage sync + async media links)."""
+"""URL message handling through metered AI Toolkit tasks."""
 
 
 from __future__ import annotations
@@ -177,12 +177,11 @@ async def handle_urls_message(
     Mixed messages process async URLs first, then webpage chat if any.
     """
     classified = classify_urls_in_text(text_value)
-    webpage_urls = [url for url, kind in classified if kind == LinkKind.webpage]
     gdrive_urls = [url for url, kind in classified if kind == LinkKind.gdrive]
     async_urls = [
         url
         for url, kind in classified
-        if kind not in {LinkKind.webpage, LinkKind.gdrive}
+        if kind != LinkKind.gdrive
     ]
 
     user_text = text_value
@@ -196,35 +195,6 @@ async def handle_urls_message(
             reply_to=event.message_id,
         )
 
-    if webpage_urls and not async_urls and not gdrive_urls:
-        await _handle_webpage_only(
-            event,
-            ctx,
-            webpage_urls,
-            user_text,
-            user_id,
-            locale,
-            workspace_id,
-        )
-        return
-
     await _submit_async_urls(
         event, ctx, async_urls, user_text, user_id, locale, workspace_id
-    )
-
-    if not webpage_urls:
-        return
-    contents = await media_flow.fetch_webpages_parallel(webpage_urls)
-    if not contents:
-        return
-    combined = "\n\n".join(contents)
-    await _reply_webpage_completion(
-        event=event,
-        ctx=ctx,
-        combined=combined,
-        user_text=user_text,
-        user_id=user_id,
-        locale=locale,
-        edit_message_id=None,
-        workspace_id=workspace_id,
     )

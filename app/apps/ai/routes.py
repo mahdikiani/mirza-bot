@@ -247,13 +247,16 @@ def _apply_provider_file_name(
     meta: dict, payload: TaskWebhookPayload, content_type: str
 ) -> None:
     """Attach a stable visible filename from provider metadata."""
-    if content_type != "youtube" or meta.get("file_name_hint"):
+    if content_type not in {"youtube", "url"} or meta.get("file_name_hint"):
         return
     provider_meta = payload.provider_meta or {}
     title = str(provider_meta.get("title") or "").strip()
+    if title:
+        meta["file_name_hint"] = title
+        return
     video_id = str(provider_meta.get("video_id") or "").strip()
-    meta["file_name_hint"] = title or (
-        f"youtube_{video_id}" if video_id else "youtube_transcript"
+    meta["file_name_hint"] = (
+        f"youtube_{video_id}" if video_id else "webpage"
     )
 
 

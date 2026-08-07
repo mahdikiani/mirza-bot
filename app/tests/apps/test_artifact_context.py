@@ -248,3 +248,20 @@ async def test_youtube_title_becomes_delivery_file_name() -> None:
         await _deliver_result(payload, "youtube")
 
     assert deliver.await_args.kwargs["file_name_hint"] == "Meaningful video title"
+
+
+def test_webpage_title_becomes_delivery_file_name() -> None:
+    from apps.ai.routes import _apply_provider_file_name
+    from apps.ai.schemas import TaskWebhookPayload
+
+    meta: dict = {}
+    payload = TaskWebhookPayload(
+        uid="webpage-task-1",
+        task_status="completed",
+        result="page body",
+        provider_meta={"title": "PKCE explained"},
+    )
+
+    _apply_provider_file_name(meta, payload, "url")
+
+    assert meta["file_name_hint"] == "PKCE explained"
