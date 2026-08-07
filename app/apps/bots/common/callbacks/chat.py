@@ -13,6 +13,7 @@ from apps.bots.common.handler_context import (
     sent_message_id,
 )
 from utils.i18n import text
+from utils.markdown_html import markdown_to_telegram_html
 
 logger = logging.getLogger(__name__)
 
@@ -93,6 +94,9 @@ async def handle_action_callback(
             "reply_to_message_id": event.message_id,
             "bot_name": ctx.bot_name,
             "user_id": usso_uid,
+            "workspace_id": (
+                bot_user.telegram_workspace_id if bot_user else None
+            ),
             "locale": target_lang,
             "action_name": action_name,
         }
@@ -172,7 +176,9 @@ async def _handle_voice_chat(
 
     sent = await ctx.renderer.send_text(
         event.chat_id,
-        response[: ctx.capabilities.max_text_chars or 4096],
+        markdown_to_telegram_html(response)[:
+            ctx.capabilities.max_text_chars or 4096
+        ],
         reply_to=event.message_id,
     )
     response_message_id = sent_message_id(sent, event.message_id)
@@ -243,7 +249,9 @@ async def _handle_transcript_chat(
 
     sent = await ctx.renderer.send_text(
         event.chat_id,
-        response[: ctx.capabilities.max_text_chars or 4096],
+        markdown_to_telegram_html(response)[:
+            ctx.capabilities.max_text_chars or 4096
+        ],
         reply_to=event.message_id,
     )
     response_message_id = sent_message_id(sent, event.message_id)

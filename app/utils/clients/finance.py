@@ -42,6 +42,28 @@ class ShopClient:
             resp.raise_for_status()
             return resp.json().get("redirect_url", "")
 
+    @staticmethod
+    async def redeem_gift_code(code: str, redeeming_user_id: str) -> dict:
+        """Redeem an admin-minted gift code for a user."""
+        async with service_client(Settings.shop_base_url, Settings.shop_api_key) as c:
+            resp = await c.post(
+                "/rewards/gift-codes/redeem",
+                json={"code": code, "redeeming_user_id": redeeming_user_id},
+            )
+            resp.raise_for_status()
+            return resp.json()
+
+    @staticmethod
+    async def create_gift_code(max_uses: int) -> dict:
+        """Mint a new admin gift code."""
+        async with service_client(Settings.shop_base_url, Settings.shop_api_key) as c:
+            resp = await c.post(
+                "/rewards/gift-codes",
+                json={"max_uses": max_uses},
+            )
+            resp.raise_for_status()
+            return resp.json()
+
 
 class SaasClient:
     """Client for services/saas — quota enquiry."""

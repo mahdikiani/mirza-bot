@@ -33,6 +33,14 @@ def _result_name(content_type: str, user_id: str | None, hint: str | None) -> st
     return f"{prefix}_{suffix}"
 
 
+def _markdown_file_name(base_name: str) -> str:
+    """Return one Markdown filename without duplicating its extension."""
+    if base_name.lower().endswith(".md"):
+        return base_name
+    stem = base_name.rsplit(".", 1)[0] if "." in base_name else base_name
+    return f"{stem}.md"
+
+
 async def _try_delete(
     renderer: object, chat_id: int | str, msg_id: int | str | None
 ) -> None:
@@ -135,9 +143,7 @@ async def _deliver_as_file(
     docx_url: str | None,
 ) -> int | str | None:
     base_name = _result_name(content_type, user_id, file_name_hint)
-    if not base_name.lower().endswith(".md"):
-        base_name = base_name.rsplit(".", 1)[0] if "." in base_name else base_name
-    file_name = f"{base_name}.md"
+    file_name = _markdown_file_name(base_name)
     file_bytes = result.encode("utf-8")
 
     media_url: str | None = None

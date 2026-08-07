@@ -38,15 +38,44 @@ class UssoAccountsClient:
         self,
         identifier_type: str,
         identifier: str,
+        referrer_code: str | None = None,
     ) -> UserResponse:
         """Look up or create a user by identifier."""
         existing = await self.get_user_by_identifier(identifier_type, identifier)
         if existing:
             return existing
-        return await self._client.create_users({
+        data = {
             "identifier_type": identifier_type,
             "identifier": identifier,
-        })
+        }
+        if referrer_code:
+            data["referral_code"] = referrer_code
+        return await self._client.create_users(data)
+
+    async def get_my_referral_code(self, user_id: str) -> str | None:
+        """Get or create a user's referral code, or return None if unavailable."""
+        try:
+            resp = await self._client.get(
+                "/api/sso/v1/referrals",
+                params={"user_id": user_id},
+                timeout=20,
+            )
+            resp.raise_for_status()
+            data = resp.json()
+            items = data.get("items", []) if isinstance(data, dict) else data
+            if items:
+                referral = items[0]
+            else:
+                resp = await self._client.post(
+                    "/api/sso/v1/referrals",
+                    json={"user_id": user_id},
+                )
+                resp.raise_for_status()
+                referral = resp.json()
+            return referral.get("code")
+        except Exception:
+            logger.exception("Failed to fetch referral code for user %s", user_id)
+            return None
 
     async def link_identifier(
         self,

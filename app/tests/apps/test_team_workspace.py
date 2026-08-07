@@ -588,7 +588,7 @@ async def test_contact_event_redeems_pending_invite() -> None:
     with (
         patch(
             "apps.bots.common.handlers.contact.get_or_create_bot_user_from_contact",
-            AsyncMock(return_value=bot_user),
+            AsyncMock(return_value=(bot_user, True)),
         ),
         patch(
             "apps.bots.common.handlers.contact.team_invites.pop_pending_invite",

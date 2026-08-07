@@ -11,6 +11,7 @@ MENU_ACTIONS: dict[str, str] = {
     button("balance"): "balance",
     button("settings"): "settings",
     button("team"): "team",
+    button("invite"): "invite",
     "راهنما": "help",
     "حساب من": "account",
     "خرید اعتبار": "purchase",
@@ -19,14 +20,18 @@ MENU_ACTIONS: dict[str, str] = {
     "⚙️ Settings": "settings",
     "🏢 تیم": "team",
     "🏢 Team": "team",
+    "👥 دعوت دوستان": "invite",
+    "👥 Invite Friends": "invite",
     "/help": "help",
     "/balance": "balance",
     "/purchase": "purchase",
     "/menu": "menu",
     "/settings": "settings",
     "/info": "info",
+    "/version": "version",
     "/models": "models",
     "/team": "team",
+    "/invite": "invite",
 }
 
 

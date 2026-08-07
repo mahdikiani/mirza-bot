@@ -29,6 +29,7 @@ buttons:
   change_model: "Change Model"
   convert: "🔄 Convert"
   team: "🏢 Team"
+  invite: "👥 Invite Friends"
   team_invite: "➕ Invite Member"
   team_members: "👥 List Members"
   team_create: "🏗 Create New Team Workspace"
@@ -67,6 +68,7 @@ messages:
   no_user: "User was not identified."
   new_chat_started: "New conversation started."
   unknown_command: "Unknown command."
+  version: "Running version: <code>{version}</code>"
   no_content: "No content was found to process."
   content_added_to_chat: "Content was added to the conversation. Ask your question now."
   ai_error: "The AI service is temporarily unavailable. Please try again."
@@ -118,6 +120,8 @@ messages:
   info: |
     🤖 <b>Mirza Bot</b> — Multi-purpose AI Assistant
 
+    Running version: <code>{version}</code>
+
     • Chat with AI
     • Voice/audio transcription
     • Text extraction from images and PDFs
@@ -168,6 +172,22 @@ messages:
   invite_already_used: "This invite link has already been used."
   invite_expired: "This invite link has expired."
   invite_join_failed: "Could not join the workspace. Please try again."
+  invite_link: |
+    Your personal referral link:
+
+    {link}
+  invite_link_error: "Could not fetch your referral link. Please try again later."
+  gift_redeemed: "Your gift was redeemed successfully."
+  gift_already_redeemed: "You have already redeemed this gift code."
+  gift_invalid_code: "This gift code is not valid."
+  gift_code_exhausted: "This gift code has reached its usage limit."
+  gift_redeem_error: "Could not redeem the gift. Please try again later."
+  gift_usage: "Usage: /gift <max_uses>"
+  gift_create_error: "Could not create the gift code. Please try again."
+  gift_created: |
+    Gift-code link created:
+
+    {link}
 
 labels:
   youtube: "YouTube"

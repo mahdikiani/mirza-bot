@@ -41,6 +41,7 @@ async def _sync_usso_user(
     messenger_id: str,
     phone_number: str,
     platform: str,
+    referrer_code: str | None = None,
 ) -> str:
     """
     Best-effort sync to USSO. Returns the USSO uid, or "" if unavailable.
@@ -66,10 +67,17 @@ async def _sync_usso_user(
                     )
                 return usso_uid
 
-            usso_user = await usso.get_or_create_user_by_identifier(
-                identifier_type,
-                messenger_id,
-            )
+            if referrer_code:
+                usso_user = await usso.get_or_create_user_by_identifier(
+                    identifier_type,
+                    messenger_id,
+                    referrer_code=referrer_code,
+                )
+            else:
+                usso_user = await usso.get_or_create_user_by_identifier(
+                    identifier_type,
+                    messenger_id,
+                )
             usso_uid = str(usso_user.uid)
             try:
                 await usso.link_identifier(usso_uid, "phone", normalized_phone)
@@ -90,7 +98,8 @@ async def _sync_usso_user(
 async def get_or_create_bot_user_from_contact(
     event: MessageEvent,
     phone_number: str,
-) -> models.BotUser:
+    referrer_code: str | None = None,
+) -> tuple[models.BotUser, bool]:
     """
     Verify contact, sync to USSO best-effort, and persist local bot user.
 
@@ -100,12 +109,18 @@ async def get_or_create_bot_user_from_contact(
     """
     messenger_id = str(event.sender.id) if event.sender else ""
     locale = detect_locale(event.metadata.get("language_code"))
+    existing = await get_bot_user(messenger_id)
+    is_new = existing is None
 
-    usso_uid = await _sync_usso_user(messenger_id, phone_number, event.platform)
+    usso_uid = await _sync_usso_user(
+        messenger_id,
+        phone_number,
+        event.platform,
+        referrer_code=referrer_code if is_new else None,
+    )
     synced = bool(usso_uid)
     id_type = usso_identifier_type_for_platform(event.platform)
 
-    existing = await get_bot_user(messenger_id)
     if existing:
         existing.phone_number = phone_number
         existing.phone_verified = True
@@ -121,7 +136,7 @@ async def get_or_create_bot_user_from_contact(
             "identifier_type": id_type,
             "identifier": messenger_id,
         })
-        return existing
+        return existing, False
 
     bot_user = models.BotUser(
         user_id=usso_uid or messenger_id,
@@ -139,7 +154,7 @@ async def get_or_create_bot_user_from_contact(
         "identifier_type": id_type,
         "identifier": messenger_id,
     })
-    return bot_user
+    return bot_user, True
 
 
 def is_typed_phone_rejection(text_value: str) -> bool:

@@ -72,6 +72,20 @@ class TestBlockStructure:
         result = markdown_to_telegram_html("```\nprint(1)\n```")
         assert result == "<pre>print(1)\n</pre>"
 
+    def test_fenced_text_flowchart(self) -> None:
+        raw = """```text
+Long file / link / media
+        ↓
+Specialized extraction
+        ↓
+Standard Markdown
+```"""
+        result = markdown_to_telegram_html(raw)
+        assert result.startswith("<pre>")
+        assert result.endswith("</pre>")
+        assert "```" not in result
+        assert "↓" in result
+
 
 class TestHtmlSafety:
     def test_escapes_angle_brackets_and_ampersand(self) -> None:

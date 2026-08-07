@@ -3,13 +3,19 @@
 
 from __future__ import annotations
 
+from apps.accounts.clients import usso_accounts_client
 from apps.bots.common import billing, settings
 from apps.bots.common import keyboards as kb
 from apps.bots.common.callbacks.team import send_team_menu
 from apps.bots.common.events import MessageEvent
-from apps.bots.common.handler_context import BotRuntimeContext, event_user_id
+from apps.bots.common.handler_context import (
+    BotRuntimeContext,
+    bot_return_url,
+    event_user_id,
+)
 from apps.bots.common.onboarding import detect_locale
 from utils.i18n import text
+from utils.version import app_version
 
 
 async def resolve_locale(event: MessageEvent) -> str:
@@ -58,9 +64,17 @@ async def handle_menu_action(
     if action == "info":
         await ctx.renderer.send_text(
             event.chat_id,
-            text("messages.info", locale=locale),
+            text("messages.info", locale=locale, version=app_version()),
             reply_to=event.message_id,
             reply_keyboard=kb.main_menu_keyboard(),
+        )
+        return True
+
+    if action == "version":
+        await ctx.renderer.send_text(
+            event.chat_id,
+            text("messages.version", locale=locale, version=app_version()),
+            reply_to=event.message_id,
         )
         return True
 
@@ -108,6 +122,25 @@ async def handle_menu_action(
     if action == "team" and bot_user is not None:
         await send_team_menu(
             ctx, event.chat_id, locale, bot_user, usso_uid, reply_to=event.message_id
+        )
+        return True
+
+    if action == "invite":
+        async with usso_accounts_client() as client:
+            code = await client.get_my_referral_code(usso_uid)
+        message = (
+            text(
+                "messages.invite_link",
+                locale=locale,
+                link=f"{bot_return_url(ctx)}?start=ref_{code}",
+            )
+            if code
+            else text("messages.invite_link_error", locale=locale)
+        )
+        await ctx.renderer.send_text(
+            event.chat_id,
+            message,
+            reply_to=event.message_id,
         )
         return True
 

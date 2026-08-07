@@ -39,7 +39,13 @@ async def handle_inline_query_event(
     else:
         messages = [{"role": "user", "content": event.text}]
         try:
-            response = await CompletionClient.complete(messages)
+            response = await CompletionClient.complete(
+                messages,
+                user_id=verified.usso_uid,
+                workspace_id=(
+                    verified.bot_user.telegram_workspace_id or verified.usso_uid
+                ),
+            )
         except InsufficientCreditsError:
             response = text("messages.insufficient_credits", locale=locale)
         except Exception:

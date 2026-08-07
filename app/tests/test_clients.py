@@ -78,7 +78,9 @@ class TestUssoClient:
         official.create_users = AsyncMock()
         client = UssoAccountsClient(official)
 
-        result = await client.get_or_create_user_by_identifier("telegram_id", "123")
+        result = await client.get_or_create_user_by_identifier(
+            "telegram_id", "123", referrer_code="ignored"
+        )
 
         assert result.uid == "user-1"
         official.get_users.assert_awaited_once()
@@ -94,7 +96,82 @@ class TestUssoClient:
         result = await client.get_or_create_user_by_identifier("telegram_id", "456")
 
         assert result.uid == "user-new"
-        official.create_users.assert_awaited_once()
+        official.create_users.assert_awaited_once_with({
+            "identifier_type": "telegram_id",
+            "identifier": "456",
+        })
+
+    @pytest.mark.asyncio
+    async def test_get_or_create_user_passes_referrer_on_creation(self) -> None:
+        official = AsyncMock()
+        official.get_users = AsyncMock(return_value=[])
+        official.create_users = AsyncMock(return_value=MagicMock(uid="user-new"))
+        client = UssoAccountsClient(official)
+
+        await client.get_or_create_user_by_identifier(
+            "telegram_id", "456", referrer_code="friend-code"
+        )
+
+        official.create_users.assert_awaited_once_with({
+            "identifier_type": "telegram_id",
+            "identifier": "456",
+            "referral_code": "friend-code",
+        })
+
+    @pytest.mark.asyncio
+    async def test_get_my_referral_code_returns_code(self) -> None:
+        official = AsyncMock()
+        resp = _mock_response(
+            json_data={"items": [{"code": "mine-123"}], "total": 1}
+        )
+        official.get = AsyncMock(return_value=resp)
+        official.post = AsyncMock()
+        client = UssoAccountsClient(official)
+
+        result = await client.get_my_referral_code("user-1")
+
+        assert result == "mine-123"
+        official.get.assert_awaited_once_with(
+            "/api/sso/v1/referrals",
+            params={"user_id": "user-1"},
+            timeout=20,
+        )
+        official.post.assert_not_awaited()
+        resp.raise_for_status.assert_called_once()
+
+    @pytest.mark.asyncio
+    async def test_get_my_referral_code_creates_when_missing(self) -> None:
+        official = AsyncMock()
+        get_resp = _mock_response(json_data={"items": [], "total": 0})
+        post_resp = _mock_response(
+            json_data={"code": "new-code-1", "user_id": "user-1"}
+        )
+        official.get = AsyncMock(return_value=get_resp)
+        official.post = AsyncMock(return_value=post_resp)
+        client = UssoAccountsClient(official)
+
+        result = await client.get_my_referral_code("user-1")
+
+        assert result == "new-code-1"
+        official.get.assert_awaited_once_with(
+            "/api/sso/v1/referrals",
+            params={"user_id": "user-1"},
+            timeout=20,
+        )
+        official.post.assert_awaited_once_with(
+            "/api/sso/v1/referrals",
+            json={"user_id": "user-1"},
+        )
+        get_resp.raise_for_status.assert_called_once()
+        post_resp.raise_for_status.assert_called_once()
+
+    @pytest.mark.asyncio
+    async def test_get_my_referral_code_swallows_errors(self) -> None:
+        official = AsyncMock()
+        official.get = AsyncMock(side_effect=RuntimeError("usso down"))
+        client = UssoAccountsClient(official)
+
+        assert await client.get_my_referral_code("user-1") is None
 
     @pytest.mark.asyncio
     async def test_create_team_workspace_posts_name(self) -> None:
@@ -206,6 +283,40 @@ class TestShopClient:
 
         assert url == "https://pay.example.com/checkout"
         client.post.assert_awaited_once()
+
+    @pytest.mark.asyncio
+    async def test_redeem_gift_code(self) -> None:
+        client = _make_async_httpx_client(
+            _mock_response(json_data={"status": "rewarded", "reward_coins": 10})
+        )
+
+        with patch(
+            "utils.clients.finance.service_client", return_value=_client_ctx(client)
+        ):
+            result = await ShopClient.redeem_gift_code("gift-1", "user-1")
+
+        assert result == {"status": "rewarded", "reward_coins": 10}
+        client.post.assert_awaited_once_with(
+            "/rewards/gift-codes/redeem",
+            json={"code": "gift-1", "redeeming_user_id": "user-1"},
+        )
+
+    @pytest.mark.asyncio
+    async def test_create_gift_code(self) -> None:
+        client = _make_async_httpx_client(
+            _mock_response(json_data={"code": "gift-1"})
+        )
+
+        with patch(
+            "utils.clients.finance.service_client", return_value=_client_ctx(client)
+        ):
+            result = await ShopClient.create_gift_code(25)
+
+        assert result == {"code": "gift-1"}
+        client.post.assert_awaited_once_with(
+            "/rewards/gift-codes",
+            json={"max_uses": 25},
+        )
 
 
 class TestSaasClient:

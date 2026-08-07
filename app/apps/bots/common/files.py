@@ -3,11 +3,11 @@
 from __future__ import annotations
 
 from apps.bots.common import context, media_flow
-from apps.bots.common import keyboards as kb
+from apps.bots.common.delivery import deliver_md_result
 from apps.bots.common.docx import extract_docx_text
 from apps.bots.common.events import MessageEvent
-from apps.bots.common.handler_context import BotRuntimeContext
-from utils.i18n import text
+from apps.bots.common.handler_context import BotRuntimeContext, sent_message_id
+from utils.markdown_html import markdown_to_telegram_html
 
 
 async def handle_file_event(
@@ -43,26 +43,62 @@ async def handle_file_event(
                 content=content,
                 user_id=user_id,
                 content_type="document",
+                workspace_id=workspace_id,
             )
             if user_prompt:
                 response = await context.extracted_content_completion(
                     content,
                     user_prompt,
                     sender_id=event.sender.id if event.sender else None,
+                    user_id=user_id,
+                    workspace_id=workspace_id or user_id,
                     locale=locale,
                 )
-                await ctx.renderer.send_text(
+                sent = await ctx.renderer.send_text(
                     event.chat_id,
-                    response,
+                    markdown_to_telegram_html(response),
                     reply_to=event.message_id,
+                )
+                delivered_id = sent_message_id(sent, event.message_id)
+                await context.store_artifact_message(
+                    platform=event.platform,
+                    platform_chat_id=str(event.chat_id),
+                    platform_message_id=str(delivered_id),
+                    reply_to_platform_message_id=str(event.message_id),
+                    user_id=user_id,
+                    workspace_id=workspace_id,
+                    source_type="document",
+                    artifact_content=content,
+                    message_content=response,
+                    original_name=file_name,
+                    base_name=file_name.rsplit(".", 1)[0],
+                    mime_type=event.file.mime_type or None,
                 )
             else:
-                await ctx.renderer.send_text(
-                    event.chat_id,
-                    text("messages.content_added_to_chat", locale=locale),
-                    reply_to=event.message_id,
-                    reply_keyboard=kb.main_menu_keyboard(),
+                delivered_id = await deliver_md_result(
+                    ctx.renderer,
+                    chat_id=event.chat_id,
+                    message_id=response_message_id,
+                    result=content,
+                    content_type="document",
+                    user_id=user_id,
+                    locale=locale,
+                    file_name_hint=file_name,
                 )
+                if delivered_id is not None:
+                    await context.store_artifact_message(
+                        platform=event.platform,
+                        platform_chat_id=str(event.chat_id),
+                        platform_message_id=str(delivered_id),
+                        reply_to_platform_message_id=str(event.message_id),
+                        user_id=user_id,
+                        workspace_id=workspace_id,
+                        source_type="document",
+                        artifact_content=content,
+                        original_name=file_name,
+                        base_name=file_name.rsplit(".", 1)[0],
+                        mime_type=event.file.mime_type or None,
+                    )
         return
 
     downloaded = await ctx.renderer.download_attached_file(event)

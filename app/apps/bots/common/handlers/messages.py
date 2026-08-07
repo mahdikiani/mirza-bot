@@ -6,13 +6,14 @@ from __future__ import annotations
 import logging
 
 from apps.ai.clients import InsufficientCreditsError
-from apps.bots.common import context, settings, team_invites
+from apps.bots.common import context, referrals, settings, team_invites
 from apps.bots.common import keyboards as kb
 from apps.bots.common.auth_gate import VerifiedUserStatus, resolve_verified_user
 from apps.bots.common.events import MessageEvent
 from apps.bots.common.files import handle_file_event
 from apps.bots.common.handler_context import (
     BotRuntimeContext,
+    bot_return_url,
     event_user_id,
     is_command,
     prompt_contact,
@@ -31,8 +32,12 @@ from apps.bots.common.onboarding import (
     typed_phone_rejection_message,
 )
 from apps.bots.common.urls import handle_urls_message
+from server.config import Settings
+from utils.clients.finance import ShopClient
 from utils.i18n import text
+from utils.markdown_html import markdown_to_telegram_html
 from utils.texttools import contains_valid_urls
+from utils.version import app_version
 
 logger = logging.getLogger(__name__)
 
@@ -61,6 +66,33 @@ async def _accept_invite_and_notify(
         )
 
 
+async def _redeem_gift_and_notify(
+    event: MessageEvent,
+    ctx: BotRuntimeContext,
+    locale: str,
+    gift_code: str,
+    usso_uid: str,
+) -> None:
+    """Redeem a gift code and tell the user the returned outcome."""
+    try:
+        result = await ShopClient.redeem_gift_code(gift_code, usso_uid)
+    except Exception:
+        logger.exception("Failed to redeem gift code for %s", usso_uid)
+        message_key = "messages.gift_redeem_error"
+    else:
+        message_key = {
+            "rewarded": "messages.gift_redeemed",
+            "already_redeemed": "messages.gift_already_redeemed",
+            "invalid_code": "messages.gift_invalid_code",
+            "code_exhausted": "messages.gift_code_exhausted",
+        }.get(result.get("status"), "messages.gift_redeem_error")
+    await ctx.renderer.send_text(
+        event.chat_id,
+        text(message_key, locale=locale),
+        reply_to=event.message_id,
+    )
+
+
 async def _handle_start_command(
     event: MessageEvent,
     ctx: BotRuntimeContext,
@@ -69,14 +101,23 @@ async def _handle_start_command(
 ) -> None:
     """Resolve the user, optionally redeem an invite token, show the menu."""
     invite_token = team_invites.parse_start_payload(text_value)
+    referral_code = referrals.parse_start_payload(text_value)
+    gift_code = referrals.parse_gift_payload(text_value)
     status, verified = await resolve_verified_user(event)
     if status == VerifiedUserStatus.needs_contact:
-        if invite_token:
-            messenger_id = event_user_id(event)
-            if messenger_id:
-                await team_invites.stash_pending_invite(
-                    event.platform, messenger_id, invite_token
-                )
+        messenger_id = event_user_id(event)
+        if invite_token and messenger_id:
+            await team_invites.stash_pending_invite(
+                event.platform, messenger_id, invite_token
+            )
+        if referral_code and messenger_id:
+            await referrals.stash_pending_referral(
+                event.platform, messenger_id, referral_code
+            )
+        if gift_code and messenger_id:
+            await referrals.stash_pending_gift(
+                event.platform, messenger_id, gift_code
+            )
         await prompt_contact(ctx, event, locale)
         return
     if status == VerifiedUserStatus.no_platform_user:
@@ -88,7 +129,70 @@ async def _handle_start_command(
         await _accept_invite_and_notify(
             event, ctx, locale, invite_token, verified.usso_uid, verified.bot_user
         )
+    if gift_code and verified is not None:
+        await _redeem_gift_and_notify(
+            event, ctx, locale, gift_code, verified.usso_uid
+        )
     await send_main_menu(ctx, event.chat_id, locale, reply_to=event.message_id)
+
+
+async def _handle_gift_command(
+    event: MessageEvent,
+    ctx: BotRuntimeContext,
+    text_value: str,
+    locale: str,
+) -> None:
+    """Mint a gift-code deep link for the configured platform admin."""
+    admin_id = (
+        Settings.bale_admin_chat_id
+        if event.platform == "bale"
+        else Settings.admin_chat_id
+    )
+    if not admin_id:
+        return
+    if isinstance(admin_id, str) and admin_id.isdecimal():
+        admin_id = int(admin_id)
+    if str(admin_id) != str(event.chat_id):
+        return
+
+    parts = text_value.strip().split()
+    try:
+        max_uses = int(parts[1])
+    except (IndexError, ValueError):
+        await ctx.renderer.send_text(
+            event.chat_id,
+            text("messages.gift_usage", locale=locale),
+            reply_to=event.message_id,
+        )
+        return
+
+    try:
+        result = await ShopClient.create_gift_code(max_uses)
+    except Exception:
+        logger.exception("Failed to create gift code")
+        await ctx.renderer.send_text(
+            event.chat_id,
+            text("messages.gift_create_error", locale=locale),
+            reply_to=event.message_id,
+        )
+        return
+
+    code = result.get("code")
+    if not code:
+        logger.warning("Shop response did not contain a gift code")
+        await ctx.renderer.send_text(
+            event.chat_id,
+            text("messages.gift_create_error", locale=locale),
+            reply_to=event.message_id,
+        )
+        return
+
+    link = f"{bot_return_url(ctx)}?start=gift_{code}"
+    await ctx.renderer.send_text(
+        event.chat_id,
+        text("messages.gift_created", locale=locale, link=link),
+        reply_to=event.message_id,
+    )
 
 
 async def _handle_slash_commands(
@@ -97,9 +201,13 @@ async def _handle_slash_commands(
     text_value: str,
     locale: str,
 ) -> bool:
-    """Handle /start /help /settings /info /models. Return True if consumed."""
+    """Handle built-in slash commands. Return True if consumed."""
     if is_command(text_value, "/start"):
         await _handle_start_command(event, ctx, text_value, locale)
+        return True
+
+    if is_command(text_value, "/gift"):
+        await _handle_gift_command(event, ctx, text_value, locale)
         return True
 
     if is_command(text_value, "/help"):
@@ -123,9 +231,17 @@ async def _handle_slash_commands(
     if is_command(text_value, "/info"):
         await ctx.renderer.send_text(
             event.chat_id,
-            text("messages.info", locale=locale),
+            text("messages.info", locale=locale, version=app_version()),
             reply_to=event.message_id,
             reply_keyboard=kb.main_menu_keyboard(),
+        )
+        return True
+
+    if is_command(text_value, "/version"):
+        await ctx.renderer.send_text(
+            event.chat_id,
+            text("messages.version", locale=locale, version=app_version()),
+            reply_to=event.message_id,
         )
         return True
 
@@ -234,7 +350,9 @@ async def _handle_chat_text(
         response = text("messages.insufficient_credits", locale=locale)
     sent = await ctx.renderer.send_text(
         event.chat_id,
-        response[: ctx.capabilities.max_text_chars or 4096],
+        markdown_to_telegram_html(response)[:
+            ctx.capabilities.max_text_chars or 4096
+        ],
         reply_to=event.message_id,
     )
     sent_id = sent_message_id(sent, event.message_id)

@@ -55,6 +55,9 @@ def main_menu_keyboard() -> ReplyKeyboard:
             [
                 ReplyButton(button("team")),
             ],
+            [
+                ReplyButton(button("invite")),
+            ],
         ]
     )
 

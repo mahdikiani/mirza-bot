@@ -24,6 +24,7 @@ async def store_message(
     reply_to_platform_message_id: str | None = None,
     content_type: str = "text",
     artifact_id: str | None = None,
+    workspace_id: str | None = None,
     meta_data: dict | None = None,
 ) -> models.Message:
     """Persist a message for reply-chain reconstruction."""
@@ -39,31 +40,105 @@ async def store_message(
         content=content,
         content_type=content_type,
         artifact_id=artifact_id,
+        workspace_id=workspace_id or user_id,
         meta_data=meta_data,
     )
     await msg.save()
     return msg
 
 
+async def store_artifact_message(
+    *,
+    platform: str,
+    platform_chat_id: str,
+    platform_message_id: str,
+    reply_to_platform_message_id: str | None,
+    user_id: str,
+    workspace_id: str | None,
+    source_type: str,
+    artifact_content: str,
+    message_content: str = "",
+    original_name: str | None = None,
+    base_name: str | None = None,
+    mime_type: str | None = None,
+    media_url: str | None = None,
+    meta_data: dict | None = None,
+) -> tuple[models.Message, models.Artifact]:
+    """Persist one delivered bot message and its workspace-owned artifact."""
+    effective_workspace_id = workspace_id or user_id
+    artifact = models.Artifact(
+        user_id=user_id,
+        workspace_id=effective_workspace_id,
+        source_type=source_type,
+        content=artifact_content,
+        original_name=original_name,
+        base_name=base_name,
+        mime_type=mime_type,
+        media_url=media_url,
+        meta_data=meta_data,
+    )
+    await artifact.save()
+    message = await store_message(
+        platform=platform,
+        platform_chat_id=platform_chat_id,
+        platform_message_id=platform_message_id,
+        reply_to_platform_message_id=reply_to_platform_message_id,
+        role="assistant",
+        content=message_content,
+        user_id=user_id,
+        workspace_id=effective_workspace_id,
+        content_type=source_type,
+        artifact_id=str(artifact.id),
+        meta_data=meta_data,
+    )
+    return message, artifact
+
+
 async def get_message_by_platform_id(
     platform: str,
     platform_chat_id: str,
     platform_message_id: str,
+    *,
+    user_id: str | None = None,
+    workspace_id: str | None = None,
 ) -> models.Message | None:
     """Look up a stored message by platform identifiers."""
-    return await models.Message.find_one({
+    query: dict[str, str] = {
         "platform": platform,
         "platform_chat_id": str(platform_chat_id),
         "platform_message_id": str(platform_message_id),
-    })
+    }
+    if workspace_id:
+        query["workspace_id"] = workspace_id
+    elif user_id:
+        query["user_id"] = user_id
+    return await models.Message.find_one(query)
 
 
-async def _message_content_with_artifact(stored: models.Message) -> str:
+async def _message_content_with_artifact(
+    stored: models.Message,
+    *,
+    user_id: str | None = None,
+    workspace_id: str | None = None,
+) -> str:
     content = stored.content
     if stored.artifact_id:
         try:
             artifact = await models.Artifact.get(stored.artifact_id)
-            if artifact and artifact.content:
+            permitted = bool(
+                artifact
+                and (
+                    (workspace_id and artifact.workspace_id == workspace_id)
+                    or (
+                        not workspace_id
+                        and user_id
+                        and artifact.user_id == user_id
+                        and not artifact.workspace_id
+                    )
+                    or (not workspace_id and not user_id)
+                )
+            )
+            if permitted and artifact and artifact.content:
                 content = (
                     f"{content}\n\n[attachment]:\n{artifact.content}"
                     if content
@@ -74,10 +149,36 @@ async def _message_content_with_artifact(stored: models.Message) -> str:
     return content
 
 
+def _message_is_in_scope(
+    stored: models.Message,
+    *,
+    user_id: str | None,
+    workspace_id: str | None,
+) -> bool:
+    """Check message ownership before reading content or using fallbacks."""
+    if workspace_id:
+        if stored.workspace_id == workspace_id:
+            return True
+        # Legacy personal messages predate workspace_id. They are safe only
+        # when the active personal workspace is the same user's USSO id.
+        return (
+            not stored.workspace_id
+            and bool(user_id)
+            and stored.user_id == user_id
+            and workspace_id == user_id
+        )
+    if user_id:
+        return stored.user_id == user_id and not stored.workspace_id
+    return True
+
+
 async def build_reply_chain_messages(
     event: MessageEvent,
     current_text: str,
     renderer: object | None = None,
+    *,
+    user_id: str | None = None,
+    workspace_id: str | None = None,
 ) -> list[dict[str, str]]:
     """Walk reply chain and build OpenAI-style messages for completions."""
     chain: list[dict[str, str]] = []
@@ -91,7 +192,13 @@ async def build_reply_chain_messages(
         )
         content = ""
         if stored:
-            content = await _message_content_with_artifact(stored)
+            if not _message_is_in_scope(
+                stored, user_id=user_id, workspace_id=workspace_id
+            ):
+                break
+            content = await _message_content_with_artifact(
+                stored, user_id=user_id, workspace_id=workspace_id
+            )
         elif renderer and hasattr(renderer, "download_document"):
             data = await renderer.download_document(event.chat_id, int(reply_id))
             if data:
@@ -149,7 +256,13 @@ async def chat_completion(
     workspace_id: str | None = None,
 ) -> str:
     """Run stateless chat completion using reply-chain context."""
-    messages = await build_reply_chain_messages(event, user_text, renderer=renderer)
+    messages = await build_reply_chain_messages(
+        event,
+        user_text,
+        renderer=renderer,
+        user_id=usso_uid,
+        workspace_id=workspace_id or usso_uid,
+    )
     if not messages:
         messages = [{"role": "user", "content": user_text}]
     model = None
@@ -176,6 +289,8 @@ async def extracted_content_completion(
     prompt: str,
     *,
     sender_id: int | str | None = None,
+    user_id: str | None = None,
+    workspace_id: str | None = None,
     locale: str = "fa",
 ) -> str:
     """Answer a prompt after the referenced attachment has been extracted."""
@@ -187,7 +302,10 @@ async def extracted_content_completion(
     message = f"[محتوای استخراج‌شده]\n{content}\n\n[درخواست کاربر]\n{prompt}"
     try:
         return await CompletionClient.complete(
-            [{"role": "user", "content": message}], model
+            [{"role": "user", "content": message}],
+            model=model,
+            user_id=user_id,
+            workspace_id=workspace_id,
         )
     except InsufficientCreditsError:
         raise

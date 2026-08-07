@@ -65,6 +65,7 @@ class Message(UserOwnedEntity):
     content_type: str = "text"
     artifact_id: str | None = None
     source_chat_id: str | None = None
+    workspace_id: str | None = None
     meta_data: dict | None = None
 
     @property
@@ -81,6 +82,10 @@ class Artifact(UserOwnedEntity):
     """Reference to a stored artifact (media file, AI toolkit result, etc.)."""
 
     source_type: str = ""
+    workspace_id: str | None = None
     media_url: str | None = None
     content: str = ""
+    original_name: str | None = None
+    base_name: str | None = None
+    mime_type: str | None = None
     meta_data: dict | None = None

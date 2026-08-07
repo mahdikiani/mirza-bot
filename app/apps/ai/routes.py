@@ -120,6 +120,8 @@ async def _apply_user_prompt(
             result,
             user_prompt,
             sender_id=meta.get("platform_user_id") or meta.get("telegram_user_id"),
+            user_id=meta.get("user_id"),
+            workspace_id=meta.get("workspace_id") or meta.get("user_id"),
             locale=str(locale),
         )
     except InsufficientCreditsError:
@@ -127,26 +129,40 @@ async def _apply_user_prompt(
         return text("messages.insufficient_credits", locale=str(locale))
 
 
-async def _store_voice_delivery(
+async def _store_completed_delivery(
     *,
     meta: dict,
     chat_id: object,
     delivered_message_id: object,
     result: str,
     user_id: object,
+    content_type: str,
+    message_content: str = "",
 ) -> None:
-    from apps.bots.common.context import store_message
+    from apps.bots.common.context import store_artifact_message
 
-    await store_message(
+    workspace_id = str(meta.get("workspace_id") or user_id)
+    file_name_hint = str(meta.get("file_name_hint") or "") or None
+    base_name = None
+    if file_name_hint:
+        base_name = file_name_hint.rsplit(".", 1)[0]
+    await store_artifact_message(
         platform=str(meta.get("platform") or "telegram"),
         platform_chat_id=str(chat_id),
         platform_message_id=str(delivered_message_id),
-        role="user",
-        content=result,
+        reply_to_platform_message_id=(
+            str(meta.get("reply_to_message_id"))
+            if meta.get("reply_to_message_id") is not None
+            else None
+        ),
         user_id=str(user_id),
-        reply_to_platform_message_id=meta.get("source_reply_to_message_id"),
-        content_type="voice",
-        meta_data={"source_message_id": meta.get("reply_to_message_id")},
+        workspace_id=workspace_id,
+        source_type=content_type,
+        artifact_content=result,
+        message_content=message_content,
+        original_name=file_name_hint,
+        base_name=base_name,
+        meta_data={"task_uid": meta.get("task_uid")},
     )
 
 
@@ -159,6 +175,7 @@ async def _deliver_completed_content(
     chat_id: object,
     response_message_id: object,
     result: str,
+    artifact_content: str,
     user_id: object,
     locale: str,
     user_prompt: str,
@@ -166,7 +183,7 @@ async def _deliver_completed_content(
     from apps.ai import pending_tasks
 
     if content_type == "promptic" and meta.get("action_name") == "minutes":
-        await deliver_docx_first_result(
+        delivered_message_id = await deliver_docx_first_result(
             renderer,
             chat_id=chat_id,
             message_id=meta.get("reply_to_message_id") or response_message_id,
@@ -179,6 +196,16 @@ async def _deliver_completed_content(
             processing_message_id=response_message_id,
             docx_title=text("buttons.minutes", locale=str(locale)),
         )
+        if delivered_message_id and user_id:
+            await _store_completed_delivery(
+                meta=meta,
+                chat_id=chat_id,
+                delivered_message_id=delivered_message_id,
+                result=artifact_content,
+                user_id=user_id,
+                content_type=content_type,
+                message_content=result if user_prompt else "",
+            )
         await pending_tasks.remove(payload.uid)
         return
 
@@ -200,13 +227,15 @@ async def _deliver_completed_content(
             else None
         ),
     )
-    if content_type == "voice" and delivered_message_id and user_id:
-        await _store_voice_delivery(
+    if delivered_message_id and user_id:
+        await _store_completed_delivery(
             meta=meta,
             chat_id=chat_id,
             delivered_message_id=delivered_message_id,
-            result=result,
+            result=artifact_content,
             user_id=user_id,
+            content_type=content_type,
+            message_content=result if user_prompt else "",
         )
     await pending_tasks.remove(payload.uid)
 
@@ -256,6 +285,7 @@ async def _deliver_result(payload: TaskWebhookPayload, content_type: str) -> Non
             await pending_tasks.remove(payload.uid)
         return
 
+    artifact_content = result
     if user_prompt:
         result = await _apply_user_prompt(
             result,
@@ -274,6 +304,7 @@ async def _deliver_result(payload: TaskWebhookPayload, content_type: str) -> Non
         chat_id=chat_id,
         response_message_id=response_message_id,
         result=result,
+        artifact_content=artifact_content,
         user_id=user_id,
         locale=str(locale),
         user_prompt=user_prompt,

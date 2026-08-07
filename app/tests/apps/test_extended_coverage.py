@@ -212,9 +212,10 @@ async def test_onboarding_create_bot_user_from_contact() -> None:
         mock_client.get_or_create_user_by_identifier = AsyncMock(return_value=mock_user)
         mock_client.link_identifier = AsyncMock()
         mock_ctx.return_value.__aenter__.return_value = mock_client
-        bot_user = await onboarding.get_or_create_bot_user_from_contact(
+        bot_user, is_new = await onboarding.get_or_create_bot_user_from_contact(
             event, "+989121234567"
         )
+    assert is_new is True
     assert bot_user.phone_verified
     assert bot_user.usso_user_id == "usso-555"
     assert bot_user.usso_synced is True
@@ -233,9 +234,10 @@ async def test_onboarding_falls_back_locally_when_usso_unavailable() -> None:
         "apps.bots.common.onboarding.usso_accounts_client",
         side_effect=Exception("usso unreachable"),
     ):
-        bot_user = await onboarding.get_or_create_bot_user_from_contact(
+        bot_user, is_new = await onboarding.get_or_create_bot_user_from_contact(
             event, "+989121234567"
         )
+    assert is_new is True
     assert bot_user.phone_verified
     assert bot_user.usso_user_id == ""
     assert bot_user.usso_synced is False
@@ -365,9 +367,10 @@ async def test_handler_balance_command() -> None:
 async def test_handle_contact_event_success() -> None:
     renderer = FakeRenderer()
     event = MessageEvent(chat_id=1, message_id=5, sender=Sender(id=42))
+    bot_user = MagicMock(usso_user_id="")
     with patch(
         "apps.bots.common.handlers.contact.get_or_create_bot_user_from_contact",
-        AsyncMock(),
+        AsyncMock(return_value=(bot_user, True)),
     ):
         await handle_contact_event(
             event,

@@ -91,6 +91,7 @@ def toolkit_task_meta(
     response_message_id: int | str,
     content_type: str,
     user_id: str,
+    workspace_id: str | None = None,
     locale: str = "fa",
     file_name_hint: str | None = None,
     user_prompt: str | None = None,
@@ -108,6 +109,7 @@ def toolkit_task_meta(
         "bot_name": bot_name,
         "content_type": content_type,
         "user_id": user_id,
+        "workspace_id": workspace_id,
         "locale": locale,
         "platform_user_id": str(event.sender.id) if event.sender else None,
         "file_name_hint": file_name_hint,
@@ -240,6 +242,7 @@ async def submit_file_bytes(
         response_message_id=response_message_id,
         content_type=content_type,
         user_id=user_id,
+        workspace_id=workspace_id,
         locale=locale,
         file_name_hint=file_name,
         user_prompt=user_prompt,
@@ -286,6 +289,7 @@ async def submit_url(
         response_message_id=response_message_id,
         content_type="url",
         user_id=user_id,
+        workspace_id=workspace_id,
         locale=locale,
         user_prompt=user_prompt,
     )
@@ -328,6 +332,11 @@ async def save_artifact(
     user_id: str,
     source_type: str,
     content: str,
+    workspace_id: str | None = None,
+    media_url: str | None = None,
+    original_name: str | None = None,
+    base_name: str | None = None,
+    mime_type: str | None = None,
     meta_data: dict | None = None,
 ) -> models.Artifact:
     """Persist extracted content as an artifact."""
@@ -335,6 +344,11 @@ async def save_artifact(
         user_id=user_id,
         source_type=source_type,
         content=content,
+        workspace_id=workspace_id,
+        media_url=media_url,
+        original_name=original_name,
+        base_name=base_name,
+        mime_type=mime_type,
         meta_data=meta_data,
     )
     await artifact.save()

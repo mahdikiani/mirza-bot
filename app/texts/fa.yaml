@@ -29,6 +29,7 @@ buttons:
   change_model: "تغییر مدل"
   convert: "🔄 تبدیل"
   team: "🏢 تیم"
+  invite: "👥 دعوت دوستان"
   team_invite: "➕ دعوت عضو جدید"
   team_members: "👥 لیست اعضا"
   team_create: "🏗 ساخت فضای کاری تیمی جدید"
@@ -69,6 +70,7 @@ messages:
   no_user: "کاربر شناسایی نشد."
   new_chat_started: "مکالمه جدید آغاز شد."
   unknown_command: "دستور شناخته نشد."
+  version: "نسخهٔ در حال اجرا: <code>{version}</code>"
   no_content: "محتوایی برای پردازش یافت نشد."
   content_added_to_chat: "محتوا به مکالمه اضافه شد. اکنون سوال خود را بپرسید."
   ai_error: "خطایی در ارتباط با سرویس هوش مصنوعی رخ داد. لطفا دوباره تلاش کنید."
@@ -107,6 +109,8 @@ messages:
   task_timeout: "پردازش بیش از حد طول کشید. لطفاً دوباره تلاش کنید."
   info: |
     🤖 <b>میرزا بات</b> — دستیار هوشمند چندمنظوره
+
+    نسخهٔ در حال اجرا: <code>{version}</code>
 
     • چت با AI
     • تبدیل صدا/ویس به متن
@@ -170,6 +174,22 @@ messages:
   invite_already_used: "این لینک دعوت قبلاً استفاده شده است."
   invite_expired: "این لینک دعوت منقضی شده است."
   invite_join_failed: "خطا در پیوستن به فضای کاری. لطفا دوباره تلاش کنید."
+  invite_link: |
+    لینک دعوت شخصی شما:
+
+    {link}
+  invite_link_error: "دریافت لینک دعوت ممکن نشد. لطفاً کمی بعد دوباره تلاش کنید."
+  gift_redeemed: "هدیه با موفقیت دریافت شد."
+  gift_already_redeemed: "این کد هدیه را قبلاً استفاده کرده‌اید."
+  gift_invalid_code: "این کد هدیه معتبر نیست."
+  gift_code_exhausted: "ظرفیت استفاده از این کد هدیه تمام شده است."
+  gift_redeem_error: "دریافت هدیه ممکن نشد. لطفاً کمی بعد دوباره تلاش کنید."
+  gift_usage: "روش استفاده: /gift <max_uses>"
+  gift_create_error: "ساخت کد هدیه ممکن نشد. لطفاً دوباره تلاش کنید."
+  gift_created: |
+    لینک کد هدیه ساخته شد:
+
+    {link}
 
 labels:
   personal_workspace: "شخصی"

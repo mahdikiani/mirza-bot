@@ -10,6 +10,7 @@ from apps.bots.common.events import MessageEvent
 from apps.bots.common.handler_context import BotRuntimeContext, sent_message_id
 from apps.bots.common.link_router import LinkKind, classify_urls_in_text
 from utils.i18n import text
+from utils.markdown_html import markdown_to_telegram_html
 
 
 async def _reply_webpage_completion(
@@ -21,6 +22,7 @@ async def _reply_webpage_completion(
     user_id: str,
     locale: str,
     edit_message_id: int | str | None,
+    workspace_id: str | None = None,
 ) -> None:
     """Complete against fetched page text, or deliver Markdown when no prompt."""
     if user_text:
@@ -29,6 +31,8 @@ async def _reply_webpage_completion(
                 combined,
                 user_text,
                 sender_id=event.sender.id if event.sender else None,
+                user_id=user_id,
+                workspace_id=workspace_id or user_id,
                 locale=locale,
             )
         except InsufficientCreditsError:
@@ -36,16 +40,33 @@ async def _reply_webpage_completion(
                 ctx.renderer, event.chat_id
             )
             response = text("messages.insufficient_credits", locale=locale)
-        body = response[: ctx.capabilities.max_text_chars or 4096]
+        body = markdown_to_telegram_html(response)[
+            : ctx.capabilities.max_text_chars or 4096
+        ]
         if edit_message_id is not None:
-            await ctx.renderer.edit_message(event.chat_id, edit_message_id, body)
+            sent = await ctx.renderer.edit_message(
+                event.chat_id, edit_message_id, body
+            )
+            delivered_id = sent_message_id(sent, edit_message_id)
         else:
-            await ctx.renderer.send_text(
+            sent = await ctx.renderer.send_text(
                 event.chat_id, body, reply_to=event.message_id
             )
+            delivered_id = sent_message_id(sent, event.message_id)
+        await context.store_artifact_message(
+            platform=event.platform,
+            platform_chat_id=str(event.chat_id),
+            platform_message_id=str(delivered_id),
+            reply_to_platform_message_id=str(event.message_id),
+            user_id=user_id,
+            workspace_id=workspace_id,
+            source_type="url",
+            artifact_content=combined,
+            message_content=response,
+        )
         return
 
-    await deliver_md_result(
+    delivered_id = await deliver_md_result(
         ctx.renderer,
         chat_id=event.chat_id,
         message_id=edit_message_id if edit_message_id is not None else event.message_id,
@@ -54,6 +75,17 @@ async def _reply_webpage_completion(
         user_id=user_id,
         locale=locale,
     )
+    if delivered_id is not None:
+        await context.store_artifact_message(
+            platform=event.platform,
+            platform_chat_id=str(event.chat_id),
+            platform_message_id=str(delivered_id),
+            reply_to_platform_message_id=str(event.message_id),
+            user_id=user_id,
+            workspace_id=workspace_id,
+            source_type="url",
+            artifact_content=combined,
+        )
 
 
 async def _handle_webpage_only(
@@ -63,6 +95,7 @@ async def _handle_webpage_only(
     user_text: str,
     user_id: str,
     locale: str,
+    workspace_id: str | None = None,
 ) -> None:
     """Sync-fetch webpages and reply (edit the reading placeholder)."""
     reading_msg = await ctx.renderer.send_text(
@@ -81,6 +114,7 @@ async def _handle_webpage_only(
         user_id=user_id,
         locale=locale,
         edit_message_id=msg_id,
+        workspace_id=workspace_id,
     )
 
 
@@ -162,7 +196,13 @@ async def handle_urls_message(
 
     if webpage_urls and not async_urls and not gdrive_urls:
         await _handle_webpage_only(
-            event, ctx, webpage_urls, user_text, user_id, locale
+            event,
+            ctx,
+            webpage_urls,
+            user_text,
+            user_id,
+            locale,
+            workspace_id,
         )
         return
 
@@ -184,4 +224,5 @@ async def handle_urls_message(
         user_id=user_id,
         locale=locale,
         edit_message_id=None,
+        workspace_id=workspace_id,
     )
