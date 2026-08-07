@@ -79,24 +79,25 @@ async def deliver_result(
     - processing_message_id is deleted after successful delivery.
     """
     keyboard = kb.md_result_keyboard(content_type) if include_actions else None
+    render_markdown = getattr(type(renderer), "render_markdown", None)
+    rendered_result = (
+        render_markdown(result)
+        if callable(render_markdown)
+        else markdown_to_telegram_html(result)
+    )
 
-    if len(result) <= FILE_THRESHOLD:
-        # Renderers send with HTML parse mode; AI results come back as
-        # Markdown, so convert here (only for the inline-text path — the
-        # .md file uploaded below must stay as real, unconverted Markdown).
-        html_result = markdown_to_telegram_html(result)
-
+    if len(result) <= FILE_THRESHOLD and len(rendered_result) <= TEXT_CHUNK_LIMIT:
         if keyboard:
             sent = await renderer.send_inline_text(
                 chat_id,
-                html_result[:TEXT_CHUNK_LIMIT],
+                rendered_result,
                 keyboard,
                 reply_to=message_id,
             )
         else:
             sent = await renderer.send_text(
                 chat_id,
-                html_result[:TEXT_CHUNK_LIMIT],
+                rendered_result,
                 reply_to=message_id,
                 reply_keyboard=None,
             )
@@ -108,12 +109,6 @@ async def deliver_result(
                 logger.debug("Failed to cache result content for message %s", sent_id)
 
         await _try_delete(renderer, chat_id, processing_message_id)
-
-        remaining = html_result[TEXT_CHUNK_LIMIT:]
-        while remaining:
-            chunk = remaining[:TEXT_CHUNK_LIMIT]
-            await renderer.send_text(chat_id, chunk, reply_to=message_id)
-            remaining = remaining[TEXT_CHUNK_LIMIT:]
 
         return sent_id
 

@@ -10,7 +10,6 @@ from apps.bots.common.events import MessageEvent
 from apps.bots.common.handler_context import BotRuntimeContext, sent_message_id
 from apps.bots.common.link_router import LinkKind, classify_urls_in_text
 from utils.i18n import text
-from utils.markdown_html import markdown_to_telegram_html
 
 
 async def _reply_webpage_completion(
@@ -41,19 +40,19 @@ async def _reply_webpage_completion(
                 ctx.renderer, event.chat_id
             )
             response = text("messages.insufficient_credits", locale=locale)
-        body = markdown_to_telegram_html(response)[
-            : ctx.capabilities.max_text_chars or 4096
-        ]
-        if edit_message_id is not None:
-            sent = await ctx.renderer.edit_message(
-                event.chat_id, edit_message_id, body
-            )
-            delivered_id = sent_message_id(sent, edit_message_id)
-        else:
-            sent = await ctx.renderer.send_text(
-                event.chat_id, body, reply_to=event.message_id
-            )
-            delivered_id = sent_message_id(sent, event.message_id)
+        delivered_id = await deliver_md_result(
+            ctx.renderer,
+            chat_id=event.chat_id,
+            message_id=event.message_id,
+            result=response,
+            content_type="url",
+            user_id=user_id,
+            locale=locale,
+            include_actions=False,
+            processing_message_id=edit_message_id,
+        )
+        if delivered_id is None:
+            return
         await context.store_artifact_message(
             platform=event.platform,
             platform_chat_id=str(event.chat_id),

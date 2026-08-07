@@ -6,6 +6,7 @@ import logging
 
 from apps.bots.common import actions
 from apps.bots.common.callbacks.content import get_content
+from apps.bots.common.delivery import deliver_md_result
 from apps.bots.common.events import CallbackEvent, MessageEvent, MessageRef
 from apps.bots.common.handler_context import (
     BotRuntimeContext,
@@ -13,7 +14,6 @@ from apps.bots.common.handler_context import (
     sent_message_id,
 )
 from utils.i18n import text
-from utils.markdown_html import markdown_to_telegram_html
 
 logger = logging.getLogger(__name__)
 
@@ -187,14 +187,17 @@ async def _handle_voice_chat(
         await context.notify_admin_insufficient_credits(ctx.renderer, event.chat_id)
         response = text("messages.insufficient_credits", locale=locale)
 
-    sent = await ctx.renderer.send_text(
-        event.chat_id,
-        markdown_to_telegram_html(response)[:
-            ctx.capabilities.max_text_chars or 4096
-        ],
-        reply_to=event.message_id,
+    response_message_id = await deliver_md_result(
+        ctx.renderer,
+        chat_id=event.chat_id,
+        message_id=event.message_id,
+        result=response,
+        content_type="chat",
+        user_id=usso_uid,
+        locale=locale,
+        include_actions=False,
     )
-    response_message_id = sent_message_id(sent, event.message_id)
+    response_message_id = response_message_id or event.message_id
     if str(response_message_id) == str(event.message_id):
         logger.warning("Assistant message id matched voice chat %s", event.message_id)
         return
@@ -260,14 +263,17 @@ async def _handle_transcript_chat(
         await context.notify_admin_insufficient_credits(ctx.renderer, event.chat_id)
         response = text("messages.insufficient_credits", locale=locale)
 
-    sent = await ctx.renderer.send_text(
-        event.chat_id,
-        markdown_to_telegram_html(response)[:
-            ctx.capabilities.max_text_chars or 4096
-        ],
-        reply_to=event.message_id,
+    response_message_id = await deliver_md_result(
+        ctx.renderer,
+        chat_id=event.chat_id,
+        message_id=event.message_id,
+        result=response,
+        content_type="chat",
+        user_id=usso_uid,
+        locale=locale,
+        include_actions=False,
     )
-    response_message_id = sent_message_id(sent, event.message_id)
+    response_message_id = response_message_id or event.message_id
     if str(response_message_id) == str(event.message_id):
         logger.warning("Assistant message id matched transcript %s", event.message_id)
         return

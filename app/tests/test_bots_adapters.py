@@ -30,13 +30,15 @@ def test_bale_token_len_always_51() -> None:
 
 
 def test_bale_safe_html_removes_literal_code_tags() -> None:
-    assert _bale_safe_html("Version: <code>0.1.26</code>") == "Version: 0.1.26"
-    assert _bale_safe_html("<pre><code>a &lt; b</code></pre>") == "a < b"
-    assert _bale_safe_html("<b>bold</b>") == "<b>bold</b>"
+    assert _bale_safe_html("Version: <code>0.1.26</code>") == "Version: `0.1.26`"
+    assert _bale_safe_html("<pre>a &lt; b</pre>") == "```a < b```"
+    assert _bale_safe_html("<pre><code>a &lt; b</code></pre>") == "```\na < b\n```"
+    assert _bale_safe_html("<b>bold</b>") == "*bold*"
+    assert _bale_safe_html("**already markdown**") == "**already markdown**"
 
 
 @pytest.mark.asyncio
-async def test_bale_renderer_sanitizes_code_tags_before_send() -> None:
+async def test_bale_renderer_converts_html_ui_copy_to_markdown() -> None:
     bot = AsyncMock()
     bot.send_message.return_value = "sent"
     renderer = BaleEventRenderer(bot)
@@ -44,7 +46,14 @@ async def test_bale_renderer_sanitizes_code_tags_before_send() -> None:
     result = await renderer.send_text(1, "نسخه: <code>0.1.26</code>")
 
     assert result == "sent"
-    bot.send_message.assert_awaited_once_with(1, "نسخه: 0.1.26")
+    bot.send_message.assert_awaited_once_with(1, "نسخه: `0.1.26`")
+
+
+def test_bale_renderer_keeps_ai_markdown() -> None:
+    rendered = BaleEventRenderer.render_markdown("# title\n\n**bold**")
+    assert "*title*" in rendered
+    assert "*bold*" in rendered
+    assert "<b>" not in rendered
 
 
 @pytest.mark.asyncio

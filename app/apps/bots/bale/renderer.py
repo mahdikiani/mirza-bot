@@ -13,6 +13,7 @@ from apps.bots.bale.bot import BaleBot
 from apps.bots.bale.markup import to_inline_markup, to_reply_markup
 from apps.bots.common.events import MessageEvent
 from apps.bots.common.keyboards import InlineKeyboard, ReplyKeyboard
+from utils.markdown_html import markdown_to_telegram_html
 
 logger = logging.getLogger(__name__)
 
@@ -25,16 +26,37 @@ logger = logging.getLogger(__name__)
 # separate resolution call is needed) works around that fixed timeout.
 BALE_FILE_DOWNLOAD_TIMEOUT = 240.0
 
-_BALE_UNSUPPORTED_CODE_TAG_RE = re.compile(
-    r"</?(?:code|pre)(?:\s[^>]*)?>", re.IGNORECASE
-)
-
 
 def _bale_safe_html(text_value: str) -> str:
-    """Remove code/pre tags that Bale displays literally instead of rendering."""
-    if not _BALE_UNSUPPORTED_CODE_TAG_RE.search(text_value):
-        return text_value
-    return html.unescape(_BALE_UNSUPPORTED_CODE_TAG_RE.sub("", text_value))
+    """Convert the small Telegram-HTML subset used by UI copy to Bale Markdown."""
+    value = re.sub(r"<br\s*/?>", "\n", text_value, flags=re.IGNORECASE)
+    value = re.sub(
+        r"<pre(?:\s[^>]*)?>\s*<code(?:\s[^>]*)?>(.*?)</code>\s*</pre>",
+        lambda match: f"```\n{match.group(1).strip()}\n```",
+        value,
+        flags=re.IGNORECASE | re.DOTALL,
+    )
+    value = re.sub(
+        r'<a\s+href=["\']([^"\']+)["\']\s*>(.*?)</a>',
+        r"[\2](\1)",
+        value,
+        flags=re.IGNORECASE | re.DOTALL,
+    )
+    for tags, marker in (
+        (("pre",), "```"),
+        (("code",), "`"),
+        (("b", "strong"), "*"),
+        (("i", "em"), "_"),
+        (("s", "strike", "del"), "~"),
+    ):
+        names = "|".join(tags)
+        value = re.sub(
+            rf"<({names})(?:\s[^>]*)?>(.*?)</\1>",
+            lambda match, wrapper=marker: f"{wrapper}{match.group(2)}{wrapper}",
+            value,
+            flags=re.IGNORECASE | re.DOTALL,
+        )
+    return html.unescape(value)
 
 
 class BaleEventRenderer:
@@ -43,6 +65,11 @@ class BaleEventRenderer:
     def __init__(self, bot: BaleBot) -> None:
         """Bind the renderer to a running Bale bot client."""
         self.bot = bot
+
+    @staticmethod
+    def render_markdown(text_value: str) -> str:
+        """Convert CommonMark-like AI output to Bale's legacy Markdown."""
+        return _bale_safe_html(markdown_to_telegram_html(text_value))
 
     async def send_typing(self, chat_id: int | str) -> None:
         """Show a typing indicator in the chat."""

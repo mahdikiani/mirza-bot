@@ -56,7 +56,7 @@ class BaleBot(AsyncTeleBot, metaclass=singleton.Singleton):
         AsyncTeleBot.__init__(
             self,
             BaleToken(raw),
-            parse_mode="HTML",
+            parse_mode="Markdown",
             **kwargs,
         )
         self._client_ready = True

@@ -9,6 +9,7 @@ from apps.ai.clients import InsufficientCreditsError
 from apps.bots.common import context, referrals, settings, team_invites
 from apps.bots.common import keyboards as kb
 from apps.bots.common.auth_gate import VerifiedUserStatus, resolve_verified_user
+from apps.bots.common.delivery import deliver_md_result
 from apps.bots.common.events import MessageEvent
 from apps.bots.common.files import handle_file_event
 from apps.bots.common.handler_context import (
@@ -35,7 +36,6 @@ from apps.bots.common.urls import handle_urls_message
 from server.config import Settings
 from utils.clients.finance import ShopClient
 from utils.i18n import text
-from utils.markdown_html import markdown_to_telegram_html
 from utils.texttools import contains_valid_urls
 from utils.version import app_version
 
@@ -348,14 +348,17 @@ async def _handle_chat_text(
     except InsufficientCreditsError:
         await context.notify_admin_insufficient_credits(ctx.renderer, event.chat_id)
         response = text("messages.insufficient_credits", locale=locale)
-    sent = await ctx.renderer.send_text(
-        event.chat_id,
-        markdown_to_telegram_html(response)[:
-            ctx.capabilities.max_text_chars or 4096
-        ],
-        reply_to=event.message_id,
+    sent_id = await deliver_md_result(
+        ctx.renderer,
+        chat_id=event.chat_id,
+        message_id=event.message_id,
+        result=response,
+        content_type="chat",
+        user_id=usso_uid,
+        locale=locale,
+        include_actions=False,
     )
-    sent_id = sent_message_id(sent, event.message_id)
+    sent_id = sent_id or event.message_id
     if str(sent_id) == str(event.message_id):
         logger.warning(
             "Assistant message id matched inbound id; skipping assistant store"
