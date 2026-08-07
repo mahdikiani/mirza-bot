@@ -47,6 +47,55 @@ async def test_bale_renderer_sanitizes_code_tags_before_send() -> None:
     bot.send_message.assert_awaited_once_with(1, "نسخه: 0.1.26")
 
 
+@pytest.mark.asyncio
+async def test_bale_document_reply_uses_legacy_reply_field() -> None:
+    bot = MagicMock()
+    bot.token = "x" * 51
+    renderer = BaleEventRenderer(bot)
+    api_result = {
+        "message_id": 22,
+        "date": 0,
+        "chat": {"id": 1, "type": "private"},
+        "reply_to_message": {
+            "message_id": 11,
+            "date": 0,
+            "chat": {"id": 1, "type": "private"},
+        },
+        "document": {"file_id": "file-1", "file_unique_id": "unique-1"},
+    }
+
+    with patch(
+        "telebot.asyncio_helper._process_request",
+        AsyncMock(return_value=api_result),
+    ) as request:
+        sent = await renderer.send_document(
+            1,
+            b"# result",
+            "result.md",
+            caption="result",
+            reply_to=11,
+        )
+
+    params = request.await_args.kwargs["params"]
+    assert params["reply_to_message_id"] == 11
+    assert "reply_parameters" not in params
+    assert request.await_args.kwargs["files"]["document"][0] == "result.md"
+    assert sent.message_id == 22
+    assert sent.reply_to_message.message_id == 11
+
+
+@pytest.mark.asyncio
+async def test_bale_document_without_reply_uses_library_client() -> None:
+    bot = AsyncMock()
+    bot.send_document.return_value = "sent"
+    renderer = BaleEventRenderer(bot)
+
+    result = await renderer.send_document(1, b"data", "result.md")
+
+    assert result == "sent"
+    bot.send_document.assert_awaited_once()
+
+
 def test_bale_bot_unconfigured_skips_client(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.delenv("BALE_BOT_TOKEN", raising=False)
     # Bypass singleton so we get a fresh instance

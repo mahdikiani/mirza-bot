@@ -222,6 +222,39 @@ class BaleEventRenderer:
         markup = to_inline_markup(inline_keyboard)
         if markup is not None:
             kwargs["reply_markup"] = markup
+        if reply_to:
+            # pyTelegramBotAPI converts reply_to_message_id into Telegram's
+            # newer reply_parameters object. Bale currently ignores that
+            # object for sendDocument, so preserve its legacy field here.
+            from telebot import asyncio_helper, types
+
+            params: dict[str, object] = {
+                "chat_id": chat_id,
+                "caption": caption or "",
+                "reply_to_message_id": reply_to,
+            }
+            if markup is not None:
+                params["reply_markup"] = markup.to_json()
+            result = await asyncio_helper._process_request(
+                self.bot.token,
+                "sendDocument",
+                method="post",
+                params=params,
+                files={"document": (file_name, BytesIO(file_data))},
+            )
+            sent = types.Message.de_json(result)
+            actual_reply = getattr(
+                getattr(sent, "reply_to_message", None), "message_id", None
+            )
+            logger.info(
+                "bale_document_reply sent chat_id=%s message_id=%s "
+                "requested_reply_to=%s actual_reply_to=%s",
+                chat_id,
+                getattr(sent, "message_id", None),
+                reply_to,
+                actual_reply,
+            )
+            return sent
         return await self.bot.send_document(
             chat_id,
             BytesIO(file_data),
