@@ -3,7 +3,9 @@
 
 from __future__ import annotations
 
+import html
 import logging
+import re
 
 import httpx
 
@@ -22,6 +24,17 @@ logger = logging.getLogger(__name__)
 # getFile is a no-op that just echoes file_id back as file_path, so no
 # separate resolution call is needed) works around that fixed timeout.
 BALE_FILE_DOWNLOAD_TIMEOUT = 240.0
+
+_BALE_UNSUPPORTED_CODE_TAG_RE = re.compile(
+    r"</?(?:code|pre)(?:\s[^>]*)?>", re.IGNORECASE
+)
+
+
+def _bale_safe_html(text_value: str) -> str:
+    """Remove code/pre tags that Bale displays literally instead of rendering."""
+    if not _BALE_UNSUPPORTED_CODE_TAG_RE.search(text_value):
+        return text_value
+    return html.unescape(_BALE_UNSUPPORTED_CODE_TAG_RE.sub("", text_value))
 
 
 class BaleEventRenderer:
@@ -52,7 +65,9 @@ class BaleEventRenderer:
         markup = to_reply_markup(reply_keyboard)
         if markup is not None:
             kwargs["reply_markup"] = markup
-        return await self.bot.send_message(chat_id, text_value, **kwargs)
+        return await self.bot.send_message(
+            chat_id, _bale_safe_html(text_value), **kwargs
+        )
 
     async def send_inline_text(
         self,
@@ -67,7 +82,9 @@ class BaleEventRenderer:
         }
         if reply_to:
             kwargs["reply_to_message_id"] = reply_to
-        return await self.bot.send_message(chat_id, text_value, **kwargs)
+        return await self.bot.send_message(
+            chat_id, _bale_safe_html(text_value), **kwargs
+        )
 
     async def edit_message(
         self,
@@ -81,6 +98,7 @@ class BaleEventRenderer:
             if text is None:
                 msg = await self.bot.get_message(chat_id, message_id)
                 text = getattr(msg, "text", None) or getattr(msg, "caption", "") or ""
+            text = _bale_safe_html(text)
             await self.bot.edit_message_text(
                 text,
                 chat_id,

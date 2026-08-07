@@ -8,6 +8,7 @@ import pytest
 from telebot.asyncio_helper import ApiTelegramException
 
 from apps.bots.bale.bot import BaleBot, BaleToken, raw_bale_token
+from apps.bots.bale.renderer import BaleEventRenderer, _bale_safe_html
 from apps.bots.runtime import registry
 from apps.bots.telegram.bot import TelegramBot
 
@@ -26,6 +27,24 @@ def test_raw_bale_token_from_env(monkeypatch: pytest.MonkeyPatch) -> None:
 
 def test_bale_token_len_always_51() -> None:
     assert len(BaleToken("short")) == 51
+
+
+def test_bale_safe_html_removes_literal_code_tags() -> None:
+    assert _bale_safe_html("Version: <code>0.1.26</code>") == "Version: 0.1.26"
+    assert _bale_safe_html("<pre><code>a &lt; b</code></pre>") == "a < b"
+    assert _bale_safe_html("<b>bold</b>") == "<b>bold</b>"
+
+
+@pytest.mark.asyncio
+async def test_bale_renderer_sanitizes_code_tags_before_send() -> None:
+    bot = AsyncMock()
+    bot.send_message.return_value = "sent"
+    renderer = BaleEventRenderer(bot)
+
+    result = await renderer.send_text(1, "نسخه: <code>0.1.26</code>")
+
+    assert result == "sent"
+    bot.send_message.assert_awaited_once_with(1, "نسخه: 0.1.26")
 
 
 def test_bale_bot_unconfigured_skips_client(monkeypatch: pytest.MonkeyPatch) -> None:
