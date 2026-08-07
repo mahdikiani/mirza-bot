@@ -6,8 +6,7 @@ from apps.bots.common import context, media_flow
 from apps.bots.common.delivery import deliver_md_result
 from apps.bots.common.docx import extract_docx_text
 from apps.bots.common.events import MessageEvent
-from apps.bots.common.handler_context import BotRuntimeContext, sent_message_id
-from utils.markdown_html import markdown_to_telegram_html
+from apps.bots.common.handler_context import BotRuntimeContext
 
 
 async def handle_file_event(
@@ -55,26 +54,31 @@ async def handle_file_event(
                     audit_source="file_caption",
                     locale=locale,
                 )
-                sent = await ctx.renderer.send_text(
-                    event.chat_id,
-                    markdown_to_telegram_html(response),
-                    reply_to=event.message_id,
-                )
-                delivered_id = sent_message_id(sent, event.message_id)
-                await context.store_artifact_message(
-                    platform=event.platform,
-                    platform_chat_id=str(event.chat_id),
-                    platform_message_id=str(delivered_id),
-                    reply_to_platform_message_id=str(event.message_id),
+                delivered_id = await deliver_md_result(
+                    ctx.renderer,
+                    chat_id=event.chat_id,
+                    message_id=event.message_id,
+                    result=response,
+                    content_type="document",
                     user_id=user_id,
-                    workspace_id=workspace_id,
-                    source_type="document",
-                    artifact_content=content,
-                    message_content=response,
-                    original_name=file_name,
-                    base_name=file_name.rsplit(".", 1)[0],
-                    mime_type=event.file.mime_type or None,
+                    locale=locale,
+                    file_name_hint=file_name,
                 )
+                if delivered_id is not None:
+                    await context.store_artifact_message(
+                        platform=event.platform,
+                        platform_chat_id=str(event.chat_id),
+                        platform_message_id=str(delivered_id),
+                        reply_to_platform_message_id=str(event.message_id),
+                        user_id=user_id,
+                        workspace_id=workspace_id,
+                        source_type="document",
+                        artifact_content=content,
+                        message_content=response,
+                        original_name=file_name,
+                        base_name=file_name.rsplit(".", 1)[0],
+                        mime_type=event.file.mime_type or None,
+                    )
             else:
                 delivered_id = await deliver_md_result(
                     ctx.renderer,

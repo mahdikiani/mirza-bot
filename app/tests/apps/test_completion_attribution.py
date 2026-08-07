@@ -80,11 +80,13 @@ async def test_file_caption_uses_handler_identity() -> None:
         file=FileRef(file_id="file-1", file_name="notes.md"),
     )
     completion = AsyncMock(return_value="answer")
+    delivery = AsyncMock(return_value=22)
 
     with (
         patch("apps.bots.common.context.store_message", AsyncMock()),
         patch("apps.bots.common.context.store_artifact_message", AsyncMock()),
         patch("apps.bots.common.context.extracted_content_completion", completion),
+        patch("apps.bots.common.files.deliver_md_result", delivery),
     ):
         await handle_file_event(
             event=event,
@@ -99,6 +101,53 @@ async def test_file_caption_uses_handler_identity() -> None:
     assert completion.await_args.kwargs["user_id"] == "usso-user-3"
     assert completion.await_args.kwargs["workspace_id"] == "workspace-3"
     assert completion.await_args.kwargs["audit_source"] == "file_caption"
+    assert delivery.await_args.kwargs["result"] == "answer"
+
+
+@pytest.mark.asyncio
+async def test_long_file_caption_answer_is_delivered_as_result() -> None:
+    from apps.bots.common.files import handle_file_event
+
+    renderer = AsyncMock()
+    renderer.download_attached_file.return_value = (b"document body", "notes.md")
+    ctx = BotRuntimeContext(
+        bot_name="test-bot",
+        platform="telegram",
+        renderer=renderer,
+        capabilities=PlatformCapabilities(),
+    )
+    event = MessageEvent(
+        platform="telegram",
+        chat_id=10,
+        message_id=20,
+        sender=Sender(id="platform-user"),
+        file=FileRef(file_id="file-1", file_name="notes.md"),
+    )
+    long_answer = "x" * 5000
+    delivery = AsyncMock(return_value=22)
+
+    with (
+        patch("apps.bots.common.context.store_message", AsyncMock()),
+        patch("apps.bots.common.context.store_artifact_message", AsyncMock()),
+        patch(
+            "apps.bots.common.context.extracted_content_completion",
+            AsyncMock(return_value=long_answer),
+        ),
+        patch("apps.bots.common.files.deliver_md_result", delivery),
+    ):
+        await handle_file_event(
+            event=event,
+            ctx=ctx,
+            user_id="usso-user-3",
+            workspace_id=None,
+            locale="fa",
+            response_message_id=21,
+            user_prompt="give a detailed answer",
+        )
+
+    assert delivery.await_args.kwargs["result"] == long_answer
+    assert delivery.await_args.kwargs["message_id"] == 20
+    renderer.send_text.assert_not_awaited()
 
 
 @pytest.mark.asyncio
