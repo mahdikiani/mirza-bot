@@ -138,6 +138,17 @@ class TestActions:
         assert actions.map_callback_action("summarize") == "summarize"
         assert actions.map_callback_action("unknown") is None
 
+    def test_action_file_name_hint_uses_localized_action_prefix(self) -> None:
+        assert (
+            actions.action_file_name_hint("structure", "فایل.md", "fa")
+            == "جزوه-فایل"
+        )
+        assert (
+            actions.action_file_name_hint("summarize", "lesson.pdf", "en")
+            == "summary-lesson.pdf"
+        )
+        assert actions.action_file_name_hint("quiz", None, "fa") is None
+
     @pytest.mark.asyncio
     async def test_run_promptic_action(self) -> None:
         with (

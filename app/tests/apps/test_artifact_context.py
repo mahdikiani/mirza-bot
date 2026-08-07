@@ -207,7 +207,7 @@ async def test_action_inherits_artifact_base_name() -> None:
 
     assert handled
     meta = action.await_args.kwargs["meta_data"]
-    assert meta["file_name_hint"] == "Meaningful title"
+    assert meta["file_name_hint"] == "خلاصه-Meaningful title"
 
 
 @pytest.mark.asyncio

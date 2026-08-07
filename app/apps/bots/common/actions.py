@@ -19,6 +19,42 @@ ACTION_PROMPTS = {
     "quiz": "quiz",
 }
 
+_ACTION_FILE_PREFIXES = {
+    "fa": {
+        "summarize": "خلاصه",
+        "structure": "جزوه",
+        "format_notes": "جزوه",
+        "translate": "ترجمه",
+        "cleanup": "پاک‌نویس",
+        "minutes": "صورت‌جلسه",
+        "quiz": "آزمون",
+    },
+    "en": {
+        "summarize": "summary",
+        "structure": "note",
+        "format_notes": "note",
+        "translate": "translation",
+        "cleanup": "cleaned",
+        "minutes": "minutes",
+        "quiz": "quiz",
+    },
+}
+
+
+def action_file_name_hint(
+    action_name: str, source_name: str | None, locale: str
+) -> str | None:
+    """Prefix an action result with its localized, meaningful operation name."""
+    if not source_name:
+        return None
+    language = "fa" if locale.lower().startswith("fa") else "en"
+    prefixes = _ACTION_FILE_PREFIXES[language]
+    prefix = prefixes.get(action_name, action_name.replace("_", "-"))
+    clean_source = source_name.strip()
+    if clean_source.lower().endswith(".md"):
+        clean_source = clean_source[:-3].rstrip(" .-")
+    return f"{prefix}-{clean_source}" if clean_source else prefix
+
 
 async def run_promptic_action(
     *,

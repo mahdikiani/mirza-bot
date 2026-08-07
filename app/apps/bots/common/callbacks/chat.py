@@ -99,6 +99,7 @@ async def handle_action_callback(
         source_name = None
         if artifact:
             source_name = artifact.base_name or artifact.original_name
+        output_name = actions.action_file_name_hint(action_name, source_name, locale)
         meta = {
             **dict(event.metadata),
             "chat_id": event.chat_id,
@@ -111,7 +112,7 @@ async def handle_action_callback(
             ),
             "locale": target_lang,
             "action_name": action_name,
-            "file_name_hint": source_name,
+            "file_name_hint": output_name,
         }
         try:
             result = await actions.run_promptic_action(
