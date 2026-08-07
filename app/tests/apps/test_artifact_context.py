@@ -8,7 +8,8 @@ import pytest
 
 from apps.bots.common import context
 from apps.bots.common.delivery import _markdown_file_name
-from apps.bots.common.events import MessageEvent, MessageRef
+from apps.bots.common.events import CallbackEvent, MessageEvent, MessageRef, Sender
+from apps.bots.common.handler_context import BotRuntimeContext, PlatformCapabilities
 from apps.bots.common.models import Artifact
 
 
@@ -20,6 +21,7 @@ from apps.bots.common.models import Artifact
         ("notes.txt", "notes.md"),
         ("notes", "notes.md"),
         ("lesson.pdf", "lesson.md"),
+        ("عنوان فارسی / بخش اول", "عنوان فارسی - بخش اول.md"),
     ],
 )
 def test_markdown_filename_has_exactly_one_extension(
@@ -145,3 +147,104 @@ async def test_webhook_delivery_persists_workspace_artifact() -> None:
     assert artifact.content == "Extracted document body"
     assert artifact.original_name == "lesson.pdf"
     assert artifact.base_name == "lesson"
+
+
+@pytest.mark.asyncio
+async def test_action_inherits_artifact_base_name() -> None:
+    from types import SimpleNamespace
+    from unittest.mock import patch
+
+    from apps.bots.common.auth_gate import VerifiedUser
+    from apps.bots.common.callbacks.chat import handle_action_callback
+    from apps.bots.common.models import BotUser
+
+    renderer = AsyncMock()
+    renderer.send_text.return_value = SimpleNamespace(id=55)
+    ctx = BotRuntimeContext(
+        bot_name="test-bot",
+        platform="telegram",
+        renderer=renderer,
+        capabilities=PlatformCapabilities(),
+    )
+    event = CallbackEvent(
+        platform="telegram",
+        callback_id="callback-1",
+        chat_id=1,
+        message_id=2,
+        data="action:summarize",
+        sender=Sender(id=3),
+    )
+    verified = VerifiedUser(
+        usso_uid="user-1",
+        bot_user=BotUser(
+            user_id="user-1",
+            telegram_workspace_id="workspace-1",
+        ),
+    )
+    action = AsyncMock(return_value={"uid": "task-1"})
+
+    with (
+        patch(
+            "apps.bots.common.callbacks.chat.require_verified_callback",
+            AsyncMock(return_value=(verified.usso_uid, verified.bot_user)),
+        ),
+        patch(
+            "apps.bots.common.callbacks.chat.get_content",
+            AsyncMock(return_value="transcript"),
+        ),
+        patch(
+            "apps.bots.common.context.get_artifact_by_platform_message",
+            AsyncMock(return_value=SimpleNamespace(base_name="Meaningful title")),
+        ),
+        patch(
+            "apps.bots.common.actions.run_promptic_action",
+            action,
+        ),
+    ):
+        handled = await handle_action_callback(
+            "action:summarize", event, ctx, "fa", "user-1"
+        )
+
+    assert handled
+    meta = action.await_args.kwargs["meta_data"]
+    assert meta["file_name_hint"] == "Meaningful title"
+
+
+@pytest.mark.asyncio
+async def test_youtube_title_becomes_delivery_file_name() -> None:
+    from unittest.mock import patch
+
+    from apps.ai.routes import _deliver_result
+    from apps.ai.schemas import TaskWebhookPayload
+
+    renderer = AsyncMock()
+    deliver = AsyncMock(return_value=77)
+    payload = TaskWebhookPayload(
+        uid="youtube-task-1",
+        task_status="completed",
+        result="transcript",
+        provider_meta={"title": "Meaningful video title", "video_id": "abc123"},
+    )
+    pending = {
+        "meta_data": {
+            "platform": "telegram",
+            "chat_id": 1,
+            "message_id": 2,
+            "reply_to_message_id": 3,
+            "bot_name": "test-bot",
+            "user_id": "user-1",
+            "workspace_id": "user-1",
+            "locale": "fa",
+        }
+    }
+
+    with (
+        patch("apps.ai.pending_tasks.get", AsyncMock(return_value=pending)),
+        patch("apps.ai.pending_tasks.remove", AsyncMock()),
+        patch("apps.ai.routes.get_renderer", return_value=renderer),
+        patch("apps.ai.routes.deliver_md_result", deliver),
+        patch("apps.ai.routes._store_completed_delivery", AsyncMock()),
+    ):
+        await _deliver_result(payload, "youtube")
+
+    assert deliver.await_args.kwargs["file_name_hint"] == "Meaningful video title"

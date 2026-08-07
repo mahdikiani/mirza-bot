@@ -115,6 +115,30 @@ async def get_message_by_platform_id(
     return await models.Message.find_one(query)
 
 
+async def get_artifact_by_platform_message(
+    platform: str,
+    platform_chat_id: str,
+    platform_message_id: str,
+    *,
+    user_id: str,
+    workspace_id: str | None,
+) -> models.Artifact | None:
+    """Return the in-scope artifact attached to a delivered platform message."""
+    effective_workspace_id = workspace_id or user_id
+    message = await get_message_by_platform_id(
+        platform,
+        platform_chat_id,
+        platform_message_id,
+        workspace_id=effective_workspace_id,
+    )
+    if not message or not message.artifact_id:
+        return None
+    artifact = await models.Artifact.get(message.artifact_id)
+    if not artifact or artifact.workspace_id != effective_workspace_id:
+        return None
+    return artifact
+
+
 async def _message_content_with_artifact(
     stored: models.Message,
     *,

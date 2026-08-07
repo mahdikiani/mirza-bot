@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import logging
+import re
 
 from apps.ai import result_content_cache
 from apps.bots.common import keyboards as kb
@@ -14,6 +15,7 @@ logger = logging.getLogger(__name__)
 
 TEXT_CHUNK_LIMIT = 4096
 FILE_THRESHOLD = 4096
+_UNSAFE_DISPLAY_NAME_RE = re.compile(r"[\\/\x00-\x1f\x7f]+")
 
 
 def _result_name(content_type: str, user_id: str | None, hint: str | None) -> str:
@@ -35,9 +37,11 @@ def _result_name(content_type: str, user_id: str | None, hint: str | None) -> st
 
 def _markdown_file_name(base_name: str) -> str:
     """Return one Markdown filename without duplicating its extension."""
-    if base_name.lower().endswith(".md"):
-        return base_name
-    stem = base_name.rsplit(".", 1)[0] if "." in base_name else base_name
+    clean_name = _UNSAFE_DISPLAY_NAME_RE.sub("-", base_name).strip(" .-")
+    clean_name = clean_name[:180].rstrip(" .-") or "result"
+    if clean_name.lower().endswith(".md"):
+        return clean_name
+    stem = clean_name.rsplit(".", 1)[0] if "." in clean_name else clean_name
     return f"{stem}.md"
 
 

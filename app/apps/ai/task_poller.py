@@ -100,7 +100,7 @@ async def _notify_timeout(task: dict) -> None:
 _CONTENT_TYPE_MAP = {
     "ocr": "document",
     "transcribe": "voice",
-    "youtube": "url",
+    "youtube": "youtube",
     "webpage": "url",
     "promptic": "promptic",
 }
@@ -137,7 +137,11 @@ async def _handle_poll_completed(task: dict, data: dict, label: str, ct: str) ->
         return
 
     payload = TaskWebhookPayload(
-        uid=task_uid, task_status="completed", meta_data=task_meta, result=result
+        uid=task_uid,
+        task_status="completed",
+        meta_data=task_meta,
+        result=result,
+        provider_meta=data.get("provider_meta"),
     )
     await _deliver_result(payload, ct)
     await pending_tasks.remove(task_uid)

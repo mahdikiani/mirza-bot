@@ -87,6 +87,18 @@ async def handle_action_callback(
             reply_to=event.message_id,
         )
         processing_msg_id = sent_message_id(processing_msg, event.message_id)
+        from apps.bots.common.context import get_artifact_by_platform_message
+
+        artifact = await get_artifact_by_platform_message(
+            event.platform,
+            str(event.chat_id),
+            str(event.message_id),
+            user_id=usso_uid,
+            workspace_id=(bot_user.telegram_workspace_id if bot_user else None),
+        )
+        source_name = None
+        if artifact:
+            source_name = artifact.base_name or artifact.original_name
         meta = {
             **dict(event.metadata),
             "chat_id": event.chat_id,
@@ -99,6 +111,7 @@ async def handle_action_callback(
             ),
             "locale": target_lang,
             "action_name": action_name,
+            "file_name_hint": source_name,
         }
         try:
             result = await actions.run_promptic_action(

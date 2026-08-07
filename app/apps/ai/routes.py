@@ -241,6 +241,20 @@ async def _deliver_completed_content(
     await pending_tasks.remove(payload.uid)
 
 
+def _apply_provider_file_name(
+    meta: dict, payload: TaskWebhookPayload, content_type: str
+) -> None:
+    """Attach a stable visible filename from provider metadata."""
+    if content_type != "youtube" or meta.get("file_name_hint"):
+        return
+    provider_meta = payload.provider_meta or {}
+    title = str(provider_meta.get("title") or "").strip()
+    video_id = str(provider_meta.get("video_id") or "").strip()
+    meta["file_name_hint"] = title or (
+        f"youtube_{video_id}" if video_id else "youtube_transcript"
+    )
+
+
 async def _deliver_result(payload: TaskWebhookPayload, content_type: str) -> None:
     from apps.ai import pending_tasks
 
@@ -256,6 +270,7 @@ async def _deliver_result(payload: TaskWebhookPayload, content_type: str) -> Non
         return
 
     meta = await _resolve_delivery_meta(payload)
+    _apply_provider_file_name(meta, payload, content_type)
     chat_id = meta.get("chat_id")
     response_message_id = meta.get("message_id")
     bot_name = meta.get("bot_name")
@@ -452,7 +467,7 @@ async def webpage_webhook(
 async def youtube_webhook(
     payload: TaskWebhookPayload, background_tasks: BackgroundTasks
 ) -> dict:
-    background_tasks.add_task(_deliver_result, payload, "url")
+    background_tasks.add_task(_deliver_result, payload, "youtube")
     return {"status": "accepted"}
 
 
