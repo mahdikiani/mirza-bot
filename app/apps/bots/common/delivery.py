@@ -64,6 +64,7 @@ async def deliver_result(
     result: str,
     content_type: str,
     user_id: str | None = None,
+    workspace_id: str | None = None,
     locale: str = "fa",
     file_name_hint: str | None = None,
     include_actions: bool = True,
@@ -119,6 +120,7 @@ async def deliver_result(
         result=result,
         content_type=content_type,
         user_id=user_id,
+        workspace_id=workspace_id,
         locale=locale,
         file_name_hint=file_name_hint,
         include_actions=include_actions,
@@ -135,6 +137,7 @@ async def _deliver_as_file(
     result: str,
     content_type: str,
     user_id: str | None,
+    workspace_id: str | None,
     locale: str,
     file_name_hint: str | None,
     include_actions: bool,
@@ -147,7 +150,12 @@ async def _deliver_as_file(
 
     media_url: str | None = None
     try:
-        media_url = await MediaClient.upload(file_bytes, file_name)
+        media_url = await MediaClient.upload(
+            file_bytes,
+            file_name,
+            user_id=user_id,
+            workspace_id=workspace_id,
+        )
     except Exception:
         logger.exception("Failed to upload MD result")
 
@@ -191,6 +199,7 @@ async def deliver_docx_first_result(
     result: str,
     content_type: str,
     user_id: str | None = None,
+    workspace_id: str | None = None,
     locale: str = "fa",
     file_name_hint: str | None = None,
     include_actions: bool = True,
@@ -220,6 +229,7 @@ async def deliver_docx_first_result(
             result=result,
             content_type=content_type,
             user_id=user_id,
+            workspace_id=workspace_id,
             locale=locale,
             file_name_hint=file_name_hint,
             include_actions=include_actions,
@@ -267,6 +277,7 @@ async def deliver_md_result(
     result: str,
     content_type: str,
     user_id: str | None = None,
+    workspace_id: str | None = None,
     locale: str = "fa",
     file_name_hint: str | None = None,
     reply_to: int | str | None = None,
@@ -282,6 +293,7 @@ async def deliver_md_result(
         result=result,
         content_type=content_type,
         user_id=user_id,
+        workspace_id=workspace_id,
         locale=locale,
         file_name_hint=file_name_hint,
         include_actions=include_actions,

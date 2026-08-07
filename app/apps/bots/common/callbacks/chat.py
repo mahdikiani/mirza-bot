@@ -195,6 +195,7 @@ async def _handle_voice_chat(
         result=response,
         content_type="chat",
         user_id=usso_uid,
+        workspace_id=workspace_id,
         locale=locale,
         include_actions=False,
     )
@@ -271,6 +272,7 @@ async def _handle_transcript_chat(
         result=response,
         content_type="chat",
         user_id=usso_uid,
+        workspace_id=workspace_id,
         locale=locale,
         include_actions=False,
     )

@@ -61,6 +61,7 @@ async def handle_file_event(
                     result=response,
                     content_type="document",
                     user_id=user_id,
+                    workspace_id=workspace_id,
                     locale=locale,
                     file_name_hint=file_name,
                 )
@@ -87,6 +88,7 @@ async def handle_file_event(
                     result=content,
                     content_type="document",
                     user_id=user_id,
+                    workspace_id=workspace_id,
                     locale=locale,
                     file_name_hint=file_name,
                 )

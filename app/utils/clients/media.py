@@ -10,7 +10,7 @@ from server.config import Settings
 
 
 class MediaClient:
-    """Upload files to services/media and return a public URL."""
+    """Upload owned files and obtain temporary URLs from Media service."""
 
     @staticmethod
     async def upload(
@@ -20,7 +20,7 @@ class MediaClient:
         workspace_id: str | None = None,
     ) -> str:
         """
-        Upload *file_bytes* and make it publicly accessible.
+        Upload *file_bytes* privately and request temporary signed access.
 
         Without user_id, the media service attributes every upload to
         mirza-bot's own shared API key instead of the actual Telegram
@@ -29,14 +29,16 @@ class MediaClient:
         Returns the public URL of the uploaded file.
         Raises ValueError if no URL is returned by the service.
         """
+        if not user_id:
+            raise ValueError("MediaClient.upload requires an owner user_id")
+
         async with httpx.AsyncClient(
             base_url=Settings.media_base_url,
             headers={"x-api-key": Settings.media_api_key or ""},
             timeout=120.0,
         ) as c:
             data = {"filename": filename}
-            if user_id:
-                data["user_id"] = user_id
+            data["user_id"] = user_id
             if workspace_id:
                 data["workspace_id"] = workspace_id
             upload_resp = await c.post(
@@ -46,23 +48,20 @@ class MediaClient:
             )
             upload_resp.raise_for_status()
             file_id = upload_resp.json().get("uid")
-
-            patch_resp = await c.patch(
-                f"/f/{file_id}",
-                json={"public_permission": {"permission": 10}},
-            )
-            patch_resp.raise_for_status()
-
-            # Prefer URL from patch response (Req 16.1)
-            url: str = patch_resp.json().get("url") or upload_resp.json().get("url", "")
-            if not patch_resp.json().get("url"):
-                logging.warning(
-                    "patch_resp missing url field for %s, falling back to upload_resp",
-                    filename,
+            if not file_id:
+                raise ValueError(
+                    f"MediaClient.upload: no file uid returned for {filename}"
                 )
+
+            signed_resp = await c.get(
+                f"/f/{file_id}",
+                params={"signed_url": True},
+            )
+            signed_resp.raise_for_status()
+            url: str = signed_resp.headers.get("location", "")
             if not url:
                 raise ValueError(
-                    f"MediaClient.upload: no URL returned for file {filename}"
+                    f"MediaClient.upload: no signed URL returned for file {filename}"
                 )
-            logging.info("Uploaded %s -> %s", filename, url)
+            logging.info("Uploaded owned media file %s", filename)
             return url

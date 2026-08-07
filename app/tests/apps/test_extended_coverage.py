@@ -851,10 +851,13 @@ async def test_deliver_md_result_long_text_upload_keeps_raw_markdown() -> None:
             result=long_text,
             content_type="document",
             user_id="u1",
+            workspace_id="w1",
             locale="fa",
         )
     uploaded_bytes = upload_mock.await_args.args[0]
     assert uploaded_bytes == long_text.encode("utf-8")
+    assert upload_mock.await_args.kwargs["user_id"] == "u1"
+    assert upload_mock.await_args.kwargs["workspace_id"] == "w1"
 
 
 def test_is_insufficient_credit_error() -> None:

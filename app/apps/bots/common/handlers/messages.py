@@ -355,6 +355,7 @@ async def _handle_chat_text(
         result=response,
         content_type="chat",
         user_id=usso_uid,
+        workspace_id=workspace_id,
         locale=locale,
         include_actions=False,
     )

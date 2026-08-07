@@ -6,7 +6,6 @@ Validates: Requirements 16.1, 16.2, 16.3
 
 from __future__ import annotations
 
-import logging
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import httpx
@@ -32,65 +31,48 @@ def _mock_response(
     return resp
 
 
-def _make_mock_httpx_client(upload_resp: MagicMock, patch_resp: MagicMock) -> AsyncMock:
+def _make_mock_httpx_client(upload_resp: MagicMock, signed_resp: MagicMock) -> AsyncMock:
     mock_client = AsyncMock()
     mock_client.post = AsyncMock(return_value=upload_resp)
-    mock_client.patch = AsyncMock(return_value=patch_resp)
+    mock_client.get = AsyncMock(return_value=signed_resp)
     mock_client.__aenter__ = AsyncMock(return_value=mock_client)
     mock_client.__aexit__ = AsyncMock(return_value=False)
     return mock_client
 
 
 @pytest.mark.asyncio
-async def test_upload_url_from_patch_resp() -> None:
-    """Req 16.1: URL is taken from patch_resp when available."""
+async def test_upload_returns_media_signed_url_without_public_patch() -> None:
     upload_resp = _mock_response(
         json_data={"uid": "file-123", "url": "https://media.example.com/old-url"},
     )
-    patch_resp = _mock_response(
-        json_data={"url": "https://media.example.com/final-url"},
-    )
-    mock_client = _make_mock_httpx_client(upload_resp, patch_resp)
+    signed_resp = _mock_response(status_code=307)
+    signed_resp.headers = {"location": "https://storage.example.com/signed"}
+    mock_client = _make_mock_httpx_client(upload_resp, signed_resp)
 
     with patch("utils.clients.media.httpx.AsyncClient", return_value=mock_client):
-        result = await MediaClient.upload(b"file-content", "test.pdf")
+        result = await MediaClient.upload(
+            b"file-content", "test.pdf", user_id="user-1"
+        )
 
-    assert result == "https://media.example.com/final-url"
-
-
-@pytest.mark.asyncio
-async def test_upload_fallback_to_upload_resp_url(
-    caplog: pytest.LogCaptureFixture,
-) -> None:
-    """Req 16.2: Falls back to upload_resp URL when patch_resp has no url."""
-    upload_resp = _mock_response(
-        json_data={"uid": "file-456", "url": "https://media.example.com/upload-url"},
+    assert result == "https://storage.example.com/signed"
+    mock_client.get.assert_awaited_once_with(
+        "/f/file-123", params={"signed_url": True}
     )
-    patch_resp = _mock_response(json_data={})  # no "url" field
-    mock_client = _make_mock_httpx_client(upload_resp, patch_resp)
-
-    with (
-        patch("utils.clients.media.httpx.AsyncClient", return_value=mock_client),
-        caplog.at_level(logging.WARNING),
-    ):
-        result = await MediaClient.upload(b"file-content", "test.pdf")
-
-    assert result == "https://media.example.com/upload-url"
-    assert any("patch_resp missing url field" in rec.message for rec in caplog.records)
+    mock_client.patch.assert_not_called()
 
 
 @pytest.mark.asyncio
-async def test_upload_raises_value_error_when_no_url() -> None:
-    """Req 16.3: ValueError raised when both responses have no URL."""
-    upload_resp = _mock_response(json_data={"uid": "file-789"})  # no "url"
-    patch_resp = _mock_response(json_data={})  # no "url"
-    mock_client = _make_mock_httpx_client(upload_resp, patch_resp)
+async def test_upload_raises_value_error_when_no_signed_url() -> None:
+    upload_resp = _mock_response(json_data={"uid": "file-789"})
+    signed_resp = _mock_response(status_code=307)
+    signed_resp.headers = {}
+    mock_client = _make_mock_httpx_client(upload_resp, signed_resp)
 
     with (
         patch("utils.clients.media.httpx.AsyncClient", return_value=mock_client),
-        pytest.raises(ValueError, match="no URL returned for file"),
+        pytest.raises(ValueError, match="no signed URL returned for file"),
     ):
-        await MediaClient.upload(b"file-content", "missing.pdf")
+        await MediaClient.upload(b"file-content", "missing.pdf", user_id="user-1")
 
 
 @pytest.mark.asyncio
@@ -104,8 +86,9 @@ async def test_upload_includes_user_and_workspace_id() -> None:
     upload_resp = _mock_response(
         json_data={"uid": "file-1", "url": "https://media.example.com/f"},
     )
-    patch_resp = _mock_response(json_data={"url": "https://media.example.com/f"})
-    mock_client = _make_mock_httpx_client(upload_resp, patch_resp)
+    signed_resp = _mock_response(status_code=307)
+    signed_resp.headers = {"location": "https://storage.example.com/signed"}
+    mock_client = _make_mock_httpx_client(upload_resp, signed_resp)
 
     with patch("utils.clients.media.httpx.AsyncClient", return_value=mock_client):
         await MediaClient.upload(
@@ -121,16 +104,6 @@ async def test_upload_includes_user_and_workspace_id() -> None:
 
 
 @pytest.mark.asyncio
-async def test_upload_omits_user_and_workspace_id_when_absent() -> None:
-    upload_resp = _mock_response(
-        json_data={"uid": "file-1", "url": "https://media.example.com/f"},
-    )
-    patch_resp = _mock_response(json_data={"url": "https://media.example.com/f"})
-    mock_client = _make_mock_httpx_client(upload_resp, patch_resp)
-
-    with patch("utils.clients.media.httpx.AsyncClient", return_value=mock_client):
+async def test_upload_rejects_missing_owner() -> None:
+    with pytest.raises(ValueError, match="requires an owner user_id"):
         await MediaClient.upload(b"file-content", "test.pdf")
-
-    sent_data = mock_client.post.call_args.kwargs["data"]
-    assert "user_id" not in sent_data
-    assert "workspace_id" not in sent_data

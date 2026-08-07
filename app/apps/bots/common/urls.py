@@ -47,6 +47,7 @@ async def _reply_webpage_completion(
             result=response,
             content_type="url",
             user_id=user_id,
+            workspace_id=workspace_id,
             locale=locale,
             include_actions=False,
             processing_message_id=edit_message_id,
@@ -73,6 +74,7 @@ async def _reply_webpage_completion(
         result=combined,
         content_type="url",
         user_id=user_id,
+        workspace_id=workspace_id,
         locale=locale,
     )
     if delivered_id is not None:
