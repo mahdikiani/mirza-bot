@@ -887,6 +887,11 @@ def test_renderer_registry() -> None:
     assert kb.settings_language_keyboard().rows
     assert kb.buy_credits_keyboard().rows
     assert kb.md_result_keyboard("document", media_url="https://x").rows
+    viewer_button = kb.convert_keyboard(
+        content_type="document",
+        media_url="https://media.example/f/abc?expires=123&signature=a%2Bb",
+    ).rows[2][0]
+    assert "expires%3D123%26signature%3Da%252Bb" in viewer_button.url
     assert kb.products_keyboard(
         [{"uid": "p1", "name": "Pack", "unit_price": 10}], 0, 1
     ).rows

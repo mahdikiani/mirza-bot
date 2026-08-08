@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass, field
+from urllib.parse import urlencode
 
 from server.config import Settings
 from utils.i18n import button, text
@@ -155,7 +156,7 @@ def convert_keyboard(
             rows.append([
                 InlineButton(
                     button("view_online"),
-                    url=f"{Settings.viewer_base_url}?url={media_url}",
+                    url=f"{Settings.viewer_base_url}?{urlencode({'url': media_url})}",
                 )
             ])
         elif content_type in ("voice", "video", "audio"):
