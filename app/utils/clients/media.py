@@ -85,7 +85,14 @@ class MediaClient:
             # becomes visible on the backing filesystem.
             ready = False
             for attempt in range(4):
-                probe = await c.head(url, follow_redirects=True)
+                # Signed storage URLs are GET-signed; RFS rejects HEAD with
+                # 403 even when the object is present. Probe one byte using
+                # the same method as the eventual downloader.
+                probe = await c.get(
+                    url,
+                    headers={"Range": "bytes=0-0"},
+                    follow_redirects=True,
+                )
                 if 200 <= probe.status_code < 300:
                     ready = True
                     break

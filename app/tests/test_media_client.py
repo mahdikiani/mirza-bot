@@ -35,7 +35,7 @@ def _make_mock_httpx_client(upload_resp: MagicMock, signed_resp: MagicMock) -> A
     mock_client = AsyncMock()
     mock_client.post = AsyncMock(return_value=upload_resp)
     mock_client.get = AsyncMock(return_value=signed_resp)
-    mock_client.head = AsyncMock(return_value=_mock_response())
+    mock_client.get = AsyncMock(side_effect=[signed_resp, _mock_response()])
     mock_client.__aenter__ = AsyncMock(return_value=mock_client)
     mock_client.__aexit__ = AsyncMock(return_value=False)
     return mock_client
@@ -56,12 +56,15 @@ async def test_upload_returns_media_signed_url_without_public_patch() -> None:
         )
 
     assert result == "https://storage.example.com/signed"
-    mock_client.get.assert_awaited_once_with(
-        "/f/file-123", params={"signed_url": True}
-    )
-    mock_client.head.assert_awaited_once_with(
-        "https://storage.example.com/signed", follow_redirects=True
-    )
+    assert mock_client.get.await_count == 2
+    assert mock_client.get.await_args_list[0].args == ("/f/file-123",)
+    assert mock_client.get.await_args_list[0].kwargs == {
+        "params": {"signed_url": True}
+    }
+    assert mock_client.get.await_args_list[1].kwargs == {
+        "headers": {"Range": "bytes=0-0"},
+        "follow_redirects": True,
+    }
     mock_client.patch.assert_not_called()
 
 
