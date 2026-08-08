@@ -46,6 +46,7 @@ async def handle_convert_callback(  # ruff: ignore[complex-structure]
                 content_type=content_type,
                 media_url=media_url,
                 docx_url=metadata.get("docx_url"),
+                file_id=metadata.get("file_id"),
             )
         except Exception:
             logger.debug("Failed to persist convert menu metadata")
