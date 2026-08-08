@@ -25,7 +25,7 @@ async def _result_metadata(event: CallbackEvent) -> dict[str, str | None]:
         return {}
 
 
-async def handle_convert_callback(
+async def handle_convert_callback(  # ruff: ignore[complex-structure]
     data: str,
     event: CallbackEvent,
     ctx: BotRuntimeContext,
@@ -92,6 +92,31 @@ async def handle_convert_callback(
                 content_type, media_url=media_url, docx_url=docx_url
             ),
         )
+        return True
+
+    if data == "convert:view":
+        metadata = await _result_metadata(event)
+        file_id = metadata.get("file_id")
+        if not file_id:
+            await ctx.renderer.answer_callback(event.callback_id, "لینک منقضی شده است")
+            return True
+        try:
+            from utils.clients.media import MediaClient
+
+            fresh_url = await MediaClient.signed_url(file_id)
+            await ctx.renderer.edit_message(
+                event.chat_id,
+                event.message_id,
+                text=None,
+                inline_keyboard=kb.convert_keyboard(
+                    content_type=metadata.get("content_type") or "document",
+                    media_url=fresh_url,
+                    view_callback=False,
+                ),
+            )
+        except Exception:
+            logger.exception("Failed to refresh viewer URL")
+            await ctx.renderer.answer_callback(event.callback_id, "خطا در ساخت لینک")
         return True
 
     if data == "convert:docx":

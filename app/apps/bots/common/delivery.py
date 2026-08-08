@@ -149,8 +149,9 @@ async def _deliver_as_file(
     file_bytes = result.encode("utf-8")
 
     media_url: str | None = None
+    media_file_id: str | None = None
     try:
-        media_url = await MediaClient.upload(
+        media_url, media_file_id = await MediaClient.upload_with_id(
             file_bytes,
             file_name,
             user_id=user_id,
@@ -195,6 +196,7 @@ async def _deliver_as_file(
                     content_type=content_type,
                     media_url=media_url,
                     docx_url=docx_url,
+                    file_id=media_file_id,
                 )
             except Exception:
                 logger.debug("Failed to cache media URL for message %s", sent_id)

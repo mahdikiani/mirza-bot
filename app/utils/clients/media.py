@@ -32,6 +32,21 @@ class MediaClient:
         if not user_id:
             raise ValueError("MediaClient.upload requires an owner user_id")
 
+        url, _file_id = await MediaClient.upload_with_id(
+            file_bytes, filename, user_id=user_id, workspace_id=workspace_id
+        )
+        return url
+
+    @staticmethod
+    async def upload_with_id(
+        file_bytes: bytes,
+        filename: str,
+        user_id: str | None = None,
+        workspace_id: str | None = None,
+    ) -> tuple[str, str]:
+        """Upload a file and return its signed URL plus stable media UID."""
+        if not user_id:
+            raise ValueError("MediaClient.upload requires an owner user_id")
         async with httpx.AsyncClient(
             base_url=Settings.media_base_url,
             headers={"x-api-key": Settings.media_api_key or ""},
@@ -65,4 +80,20 @@ class MediaClient:
                     f"MediaClient.upload: no signed URL returned for file {filename}"
                 )
             logging.info("Uploaded owned media file %s", filename)
+            return url, str(file_id)
+
+    @staticmethod
+    async def signed_url(file_id: str) -> str:
+        """Generate a fresh temporary URL for an existing media file."""
+        async with httpx.AsyncClient(
+            base_url=Settings.media_base_url,
+            headers={"x-api-key": Settings.media_api_key or ""},
+            timeout=30.0,
+        ) as c:
+            response = await c.get(f"/f/{file_id}", params={"signed_url": True})
+            if not response.is_redirect:
+                response.raise_for_status()
+            url = response.headers.get("location", "")
+            if not url:
+                raise ValueError("MediaClient.signed_url: no signed URL returned")
             return url

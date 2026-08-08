@@ -144,7 +144,7 @@ def md_result_keyboard(
 
 
 def convert_keyboard(
-    content_type: str = "", media_url: str | None = None
+    content_type: str = "", media_url: str | None = None, view_callback: bool = True
 ) -> InlineKeyboard:
     """Build conversion sub-menu keyboard (only implemented formats)."""
     rows = [
@@ -156,7 +156,15 @@ def convert_keyboard(
             rows.append([
                 InlineButton(
                     button("view_online"),
-                    url=f"{Settings.viewer_base_url}?{urlencode({'url': media_url})}",
+                    callback_data="convert:view" if view_callback else "",
+                    url=(
+                        ""
+                        if view_callback
+                        else (
+                            f"{Settings.viewer_base_url}?"
+                            f"{urlencode({'url': media_url})}"
+                        )
+                    ),
                 )
             ])
         elif content_type in ("voice", "video", "audio"):

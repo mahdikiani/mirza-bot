@@ -34,6 +34,7 @@ async def save_metadata(
     content_type: str,
     media_url: str | None = None,
     docx_url: str | None = None,
+    file_id: str | None = None,
 ) -> None:
     """Cache result metadata needed to rebuild its action keyboard."""
     redis: Redis = get_redis()
@@ -44,6 +45,7 @@ async def save_metadata(
                 "content_type": content_type,
                 "media_url": media_url,
                 "docx_url": docx_url,
+                "file_id": file_id,
             }
         ),
         ex=_DEFAULT_TTL,

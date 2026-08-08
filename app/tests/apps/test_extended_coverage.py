@@ -891,7 +891,7 @@ def test_renderer_registry() -> None:
         content_type="document",
         media_url="https://media.example/f/abc?expires=123&signature=a%2Bb",
     ).rows[2][0]
-    assert "expires%3D123%26signature%3Da%252Bb" in viewer_button.url
+    assert viewer_button.callback_data == "convert:view"
     assert kb.products_keyboard(
         [{"uid": "p1", "name": "Pack", "unit_price": 10}], 0, 1
     ).rows
