@@ -98,13 +98,22 @@ async def handle_convert_callback(  # ruff: ignore[complex-structure]
     if data == "convert:view":
         metadata = await _result_metadata(event)
         file_id = metadata.get("file_id")
-        if not file_id:
-            await ctx.renderer.answer_callback(event.callback_id, "لینک منقضی شده است")
-            return True
         try:
             from utils.clients.media import MediaClient
 
-            fresh_url = await MediaClient.signed_url(file_id)
+            if file_id:
+                fresh_url = await MediaClient.signed_url(file_id)
+            else:
+                # Legacy results predate file_id metadata. Re-upload their
+                # cached Markdown once so they can still obtain a fresh URL.
+                content = await get_content(event, ctx)
+                if not content:
+                    raise ValueError("missing result content")  # ruff: ignore[raise-within-try]
+                fresh_url = await MediaClient.upload(
+                    content.encode("utf-8"),
+                    "result.md",
+                    user_id=user_id,
+                )
             await ctx.renderer.edit_message(
                 event.chat_id,
                 event.message_id,
