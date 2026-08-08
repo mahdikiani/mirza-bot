@@ -5,7 +5,7 @@ from utils.version import app_version
 
 
 def test_installed_version_matches_release() -> None:
-    assert app_version() == "0.1.39"
+    assert app_version() == "0.1.40"
 
 
 def test_version_command_is_routable() -> None:

@@ -5,7 +5,7 @@ from __future__ import annotations
 import logging
 import re
 
-from apps.ai import result_content_cache
+from apps.ai import result_content_cache, result_media_cache
 from apps.bots.common import keyboards as kb
 from utils.clients.media import MediaClient
 from utils.i18n import text
@@ -188,6 +188,16 @@ async def _deliver_as_file(
             await result_content_cache.save(sent_id, result)
         except Exception:
             logger.debug("Failed to cache result content for message %s", sent_id)
+        if media_url:
+            try:
+                await result_media_cache.save_metadata(
+                    sent_id,
+                    content_type=content_type,
+                    media_url=media_url,
+                    docx_url=docx_url,
+                )
+            except Exception:
+                logger.debug("Failed to cache media URL for message %s", sent_id)
     return sent_id
 
 

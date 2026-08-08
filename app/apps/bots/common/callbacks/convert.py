@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import logging
 
+from apps.ai import result_media_cache
 from apps.bots.common import keyboards as kb
 from apps.bots.common.callbacks.content import get_content
 from apps.bots.common.events import CallbackEvent
@@ -11,6 +12,17 @@ from apps.bots.common.handler_context import BotRuntimeContext
 from utils.i18n import text
 
 logger = logging.getLogger(__name__)
+
+
+async def _result_metadata(event: CallbackEvent) -> dict[str, str | None]:
+    """Load cached result metadata, with an empty legacy fallback."""
+    if not event.message_id:
+        return {}
+    try:
+        return await result_media_cache.get_metadata(event.message_id) or {}
+    except Exception:
+        logger.debug("Result metadata cache lookup failed for %s", event.message_id)
+        return {}
 
 
 async def handle_convert_callback(
@@ -24,19 +36,50 @@ async def handle_convert_callback(
     if data.startswith("convert:menu"):
         parts = data.split(":", 2)
         content_type = parts[2] if len(parts) > 2 else ""
+        metadata = await _result_metadata(event)
+        media_url = metadata.get("media_url")
         await ctx.renderer.edit_message(
             event.chat_id,
             event.message_id,
             text=None,
-            inline_keyboard=kb.convert_keyboard(content_type=content_type),
+            inline_keyboard=kb.convert_keyboard(
+                content_type=content_type, media_url=media_url
+            ),
         )
         return True
 
     if data == "convert:back":
+        content_type = "document"
+        metadata = await _result_metadata(event)
+        content_type = metadata.get("content_type") or content_type
+        media_url = metadata.get("media_url")
+        docx_url = metadata.get("docx_url")
+        # The original content type is encoded in the Convert button's
+        # callback, but Telegram/Bale only send the new callback payload.
+        # Recover it from the stored message when available; document is the
+        # safe fallback for legacy messages.
+        try:
+            from apps.bots.common import context
+
+            artifact = await context.get_artifact_by_platform_message(
+                event.platform,
+                str(event.chat_id),
+                str(event.message_id),
+                user_id=user_id or "",
+                workspace_id=None,
+            )
+            if artifact:
+                content_type = artifact.source_type or content_type
+                media_url = media_url or artifact.media_url
+        except Exception:
+            logger.debug("Could not restore result metadata for %s", event.message_id)
         await ctx.renderer.edit_message(
             event.chat_id,
             event.message_id,
             text=None,
+            inline_keyboard=kb.md_result_keyboard(
+                content_type, media_url=media_url, docx_url=docx_url
+            ),
         )
         return True
 
