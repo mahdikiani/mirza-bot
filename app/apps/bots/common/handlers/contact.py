@@ -76,7 +76,9 @@ async def handle_contact_event(
     if gift_code and bot_user.usso_user_id:
         try:
             result = await ShopClient.redeem_gift_code(
-                gift_code, bot_user.usso_user_id
+                gift_code,
+                bot_user.usso_user_id,
+                workspace_id=bot_user.telegram_workspace_id,
             )
             if result.get("status") == "rewarded":
                 await ctx.renderer.send_text(

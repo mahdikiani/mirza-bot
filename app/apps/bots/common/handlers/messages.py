@@ -72,10 +72,13 @@ async def _redeem_gift_and_notify(
     locale: str,
     gift_code: str,
     usso_uid: str,
+    workspace_id: str | None = None,
 ) -> None:
     """Redeem a gift code and tell the user the returned outcome."""
     try:
-        result = await ShopClient.redeem_gift_code(gift_code, usso_uid)
+        result = await ShopClient.redeem_gift_code(
+            gift_code, usso_uid, workspace_id=workspace_id
+        )
     except Exception:
         logger.exception("Failed to redeem gift code for %s", usso_uid)
         message_key = "messages.gift_redeem_error"
@@ -131,7 +134,12 @@ async def _handle_start_command(
         )
     if gift_code and verified is not None:
         await _redeem_gift_and_notify(
-            event, ctx, locale, gift_code, verified.usso_uid
+            event,
+            ctx,
+            locale,
+            gift_code,
+            verified.usso_uid,
+            getattr(verified.bot_user, "telegram_workspace_id", None),
         )
     await send_main_menu(ctx, event.chat_id, locale, reply_to=event.message_id)
 

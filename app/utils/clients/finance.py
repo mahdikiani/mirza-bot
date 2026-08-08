@@ -43,12 +43,17 @@ class ShopClient:
             return resp.json().get("redirect_url", "")
 
     @staticmethod
-    async def redeem_gift_code(code: str, redeeming_user_id: str) -> dict:
+    async def redeem_gift_code(
+        code: str, redeeming_user_id: str, workspace_id: str | None = None
+    ) -> dict:
         """Redeem an admin-minted gift code for a user."""
         async with service_client(Settings.shop_base_url, Settings.shop_api_key) as c:
+            payload = {"code": code, "redeeming_user_id": redeeming_user_id}
+            if workspace_id:
+                payload["workspace_id"] = workspace_id
             resp = await c.post(
                 "/rewards/gift-codes/redeem",
-                json={"code": code, "redeeming_user_id": redeeming_user_id},
+                json=payload,
             )
             resp.raise_for_status()
             return resp.json()
