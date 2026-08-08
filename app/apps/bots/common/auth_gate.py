@@ -90,6 +90,23 @@ async def _sync_usso_state_and_workspace(
         await bot_user.save()
 
 
+async def _repair_cached_personal_workspace(bot_user: models.BotUser) -> None:
+    """Repair a stale personal workspace while retaining selected teams."""
+    active_workspace = bot_user.telegram_workspace_id
+    if active_workspace not in {None, bot_user.usso_user_id}:
+        return
+    try:
+        personal_workspace = await get_personal_workspace_id(bot_user.usso_user_id)
+    except Exception:
+        logger.exception(
+            "Failed to repair personal workspace for %s", bot_user.usso_user_id
+        )
+        return
+    if personal_workspace and personal_workspace != active_workspace:
+        bot_user.telegram_workspace_id = personal_workspace
+        await bot_user.save()
+
+
 async def resolve_verified_user(
     event: PlatformEvent,
 ) -> tuple[VerifiedUserStatus, VerifiedUser | None]:
@@ -134,6 +151,10 @@ async def resolve_verified_user(
 
     if usso_unavailable:
         if bot_user.usso_user_id:
+            # Identifier lookup can fail for Bale while the service-account
+            # workspace listing remains available. Repair stale personal
+            # workspace state before falling back to cached identity.
+            await _repair_cached_personal_workspace(bot_user)
             return VerifiedUserStatus.ok, VerifiedUser(
                 usso_uid=bot_user.usso_user_id,
                 bot_user=bot_user,

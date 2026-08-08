@@ -157,11 +157,40 @@ async def test_resolve_outage_allows_last_known() -> None:
             "apps.bots.common.auth_gate.get_existing_usso_user",
             AsyncMock(side_effect=RuntimeError("usso down")),
         ),
+        patch(
+            "apps.bots.common.auth_gate.get_personal_workspace_id",
+            AsyncMock(return_value=None),
+        ),
     ):
         status, verified = await resolve_verified_user(_event())
     assert status == VerifiedUserStatus.ok
     assert verified is not None
     assert verified.usso_revalidate_pending is True
+
+
+@pytest.mark.asyncio
+async def test_resolve_outage_repairs_stale_personal_workspace() -> None:
+    bot_user = _bot_user(telegram_workspace_id="usso-1")
+    with (
+        patch(
+            "apps.bots.common.auth_gate.get_bot_user",
+            AsyncMock(return_value=bot_user),
+        ),
+        patch(
+            "apps.bots.common.auth_gate.get_existing_usso_user",
+            AsyncMock(side_effect=RuntimeError("bale lookup unsupported")),
+        ),
+        patch(
+            "apps.bots.common.auth_gate.get_personal_workspace_id",
+            AsyncMock(return_value="personal-ws-1"),
+        ),
+        patch.object(BotUser, "save", AsyncMock()),
+    ):
+        status, verified = await resolve_verified_user(_event())
+
+    assert status == VerifiedUserStatus.ok
+    assert verified is not None
+    assert bot_user.telegram_workspace_id == "personal-ws-1"
 
 
 @pytest.mark.asyncio
