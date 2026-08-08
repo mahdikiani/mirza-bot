@@ -62,9 +62,9 @@ class OCRClient:
     async def get_result(task_uid: str) -> str:
         """Fetch the result of a completed OCR task."""
         async with toolkit_client() as c:
-            resp = await c.get(f"/ocrs/{task_uid}")
+            resp = await c.get(f"/ocrs/{task_uid}/result")
             resp.raise_for_status()
-            return completed_result_or_raise(resp.json(), task_uid, "OCR")
+            return resp.text
 
 
 class TranscribeClient:
