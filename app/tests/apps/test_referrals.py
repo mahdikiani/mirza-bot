@@ -332,6 +332,42 @@ async def test_gift_command_creates_link_for_admin() -> None:
 
 
 @pytest.mark.asyncio
+async def test_gift_command_without_value_defaults_to_single_use() -> None:
+    renderer = FakeRenderer()
+    with (
+        patch("apps.bots.common.handlers.messages.Settings.admin_chat_id", "123"),
+        patch(
+            "apps.bots.common.handlers.messages.ShopClient.create_gift_code",
+            AsyncMock(return_value={"code": "single-use-code"}),
+        ) as mock_create,
+    ):
+        await handle_message_event(
+            _message_event("/gift", chat_id=123), _ctx(renderer)
+        )
+
+    mock_create.assert_awaited_once_with(1)
+    assert "start=gift_single-use-code" in renderer.sent[0][1]
+
+
+@pytest.mark.asyncio
+async def test_gift_command_rejects_non_numeric_value() -> None:
+    renderer = FakeRenderer()
+    with (
+        patch("apps.bots.common.handlers.messages.Settings.admin_chat_id", "123"),
+        patch(
+            "apps.bots.common.handlers.messages.ShopClient.create_gift_code",
+            AsyncMock(),
+        ) as mock_create,
+    ):
+        await handle_message_event(
+            _message_event("/gift abc", chat_id=123), _ctx(renderer)
+        )
+
+    mock_create.assert_not_awaited()
+    assert text("messages.gift_usage", locale="fa") in renderer.sent[0][1]
+
+
+@pytest.mark.asyncio
 async def test_contact_passes_referral_and_redeems_pending_gift() -> None:
     renderer = FakeRenderer()
     event = _message_event("", sender_id="contact-referral-user")

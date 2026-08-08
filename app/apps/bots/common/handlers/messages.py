@@ -164,15 +164,19 @@ async def _handle_gift_command(
         return
 
     parts = text_value.strip().split()
-    try:
-        max_uses = int(parts[1])
-    except (IndexError, ValueError):
-        await ctx.renderer.send_text(
-            event.chat_id,
-            text("messages.gift_usage", locale=locale),
-            reply_to=event.message_id,
-        )
-        return
+    if len(parts) < 2:
+        # No value after /gift: assume a single-use gift, not a usage error.
+        max_uses = 1
+    else:
+        try:
+            max_uses = int(parts[1])
+        except ValueError:
+            await ctx.renderer.send_text(
+                event.chat_id,
+                text("messages.gift_usage", locale=locale),
+                reply_to=event.message_id,
+            )
+            return
 
     try:
         result = await ShopClient.create_gift_code(max_uses)
