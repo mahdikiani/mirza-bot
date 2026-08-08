@@ -48,7 +48,7 @@ def test_app_version_falls_back_to_pyproject() -> None:
         "apps.bots.runtime.handlers.version",
         side_effect=PackageNotFoundError,
     ):
-        assert app_version() == "0.1.45"
+        assert app_version() == "0.1.46"
 
 
 def test_get_bot_returns_matching_bot() -> None:
