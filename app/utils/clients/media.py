@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import asyncio
 import logging
 
 import httpx
@@ -78,6 +79,22 @@ class MediaClient:
             if not url:
                 raise ValueError(
                     f"MediaClient.upload: no signed URL returned for file {filename}"
+                )
+            # Do not submit a task until the object is actually readable from
+            # storage.  Media may return its signed URL just before the object
+            # becomes visible on the backing filesystem.
+            ready = False
+            for attempt in range(4):
+                probe = await c.head(url, follow_redirects=True)
+                if 200 <= probe.status_code < 300:
+                    ready = True
+                    break
+                if probe.status_code != 404 or attempt == 3:
+                    probe.raise_for_status()
+                await asyncio.sleep(2**attempt)
+            if not ready:
+                raise ValueError(
+                    f"MediaClient.upload: uploaded file is not readable: {filename}"
                 )
             logging.info("Uploaded owned media file %s", filename)
             return url, str(file_id)
