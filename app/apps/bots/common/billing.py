@@ -2,11 +2,22 @@
 
 from __future__ import annotations
 
+from decimal import ROUND_HALF_UP, Decimal, InvalidOperation
+
 from utils.clients.finance import SaasClient, ShopClient
 from utils.i18n import text
 
 # Module default; override via Settings / env ``PRODUCTS_PER_PAGE``.
 DEFAULT_PRODUCTS_PER_PAGE = 10
+
+
+def format_quota(value: object) -> str:
+    """Format a coin balance with at most two decimal places."""
+    try:
+        amount = Decimal(str(value)).quantize(Decimal("0.01"), rounding=ROUND_HALF_UP)
+    except (InvalidOperation, ValueError, TypeError):
+        return str(value)
+    return format(amount, "f").rstrip("0").rstrip(".") or "0"
 
 
 def products_per_page() -> int:
@@ -24,7 +35,7 @@ async def fetch_balance(
     """Return formatted balance message for the active workspace, if any."""
     try:
         data = await SaasClient.get_quota("coin", user_id, workspace_id=workspace_id)
-        quota = data.get("quota", 0)
+        quota = format_quota(data.get("quota", 0))
         unit = data.get("unit") or text("labels.coin_unit", locale=locale)
         return text("messages.balance", locale=locale, quota=quota, unit=unit)
     except Exception:

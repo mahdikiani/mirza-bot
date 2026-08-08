@@ -249,6 +249,16 @@ class TestBilling:
         assert "10" in msg
 
     @pytest.mark.asyncio
+    async def test_fetch_balance_limits_fractional_digits(self) -> None:
+        with patch(
+            "apps.bots.common.billing.SaasClient.get_quota",
+            AsyncMock(return_value={"quota": "12.3456", "unit": "coins"}),
+        ):
+            msg = await billing.fetch_balance("u1", locale="en")
+        assert "12.35" in msg
+        assert "12.3456" not in msg
+
+    @pytest.mark.asyncio
     async def test_fetch_balance_error(self) -> None:
         with patch(
             "apps.bots.common.billing.SaasClient.get_quota",
