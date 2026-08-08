@@ -38,6 +38,17 @@ async def handle_convert_callback(
         content_type = parts[2] if len(parts) > 2 else ""
         metadata = await _result_metadata(event)
         media_url = metadata.get("media_url")
+        # Persist the content type even for older results so Back can rebuild
+        # the original keyboard after this menu has been opened once.
+        try:
+            await result_media_cache.save_metadata(
+                event.message_id,
+                content_type=content_type,
+                media_url=media_url,
+                docx_url=metadata.get("docx_url"),
+            )
+        except Exception:
+            logger.debug("Failed to persist convert menu metadata")
         await ctx.renderer.edit_message(
             event.chat_id,
             event.message_id,

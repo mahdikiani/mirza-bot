@@ -134,7 +134,11 @@ async def get_artifact_by_platform_message(
     if not message or not message.artifact_id:
         return None
     artifact = await models.Artifact.get(message.artifact_id)
-    if not artifact or artifact.workspace_id != effective_workspace_id:
+    if not artifact:
+        return None
+    if workspace_id and artifact.workspace_id != workspace_id:
+        return None
+    if not workspace_id and user_id and artifact.user_id != user_id:
         return None
     return artifact
 
