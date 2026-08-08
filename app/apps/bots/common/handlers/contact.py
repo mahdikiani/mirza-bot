@@ -5,6 +5,7 @@ from __future__ import annotations
 import logging
 
 from apps.bots.common import referrals, team_invites
+from apps.bots.common.auth_gate import resolve_verified_user
 from apps.bots.common.events import MessageEvent
 from apps.bots.common.handler_context import BotRuntimeContext, event_user_id
 from apps.bots.common.handlers.menu import resolve_locale, send_main_menu
@@ -74,6 +75,10 @@ async def handle_contact_event(
         else None
     )
     if gift_code and bot_user.usso_user_id:
+        if not bot_user.telegram_workspace_id:
+            _, verified = await resolve_verified_user(event)
+            if verified is not None:
+                bot_user = verified.bot_user
         try:
             result = await ShopClient.redeem_gift_code(
                 gift_code,
