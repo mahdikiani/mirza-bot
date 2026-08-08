@@ -133,12 +133,16 @@ async def test_resolve_missing_workspace_uses_personal_scope() -> None:
             "apps.bots.common.auth_gate.get_existing_usso_user",
             AsyncMock(return_value=usso),
         ),
+        patch(
+            "apps.bots.common.auth_gate.get_personal_workspace_id",
+            AsyncMock(return_value="personal-ws-1"),
+        ),
         patch.object(BotUser, "save", AsyncMock()),
     ):
         status, verified = await resolve_verified_user(_event())
     assert status == VerifiedUserStatus.ok
     assert verified is not None
-    assert bot_user.telegram_workspace_id == "usso-1"
+    assert bot_user.telegram_workspace_id == "personal-ws-1"
 
 
 @pytest.mark.asyncio

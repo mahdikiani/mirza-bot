@@ -95,6 +95,18 @@ async def get_existing_usso_user(credentials: dict) -> UserData | None:
         return _to_user_data(user) if user else None
 
 
+async def get_personal_workspace_id(
+    user_id: str, tenant_id: str | None = None
+) -> str | None:
+    """Resolve the real personal workspace through the service account."""
+    async with get_usso_client() as client:
+        workspace = await client.get_personal_workspace(
+            user_id=user_id,
+            tenant_id=tenant_id,
+        )
+    return str(workspace["uid"]) if workspace and workspace.get("uid") else None
+
+
 @cached(ttl=USSO_USER_CACHE_TTL)
 async def get_user_profile(user_id: str, **kwargs: object) -> Profile:
     """Return a cached user profile from USSO."""

@@ -190,6 +190,43 @@ class TestUssoClient:
         resp.raise_for_status.assert_called_once()
 
     @pytest.mark.asyncio
+    async def test_get_personal_workspace_filters_tenant_and_kind(self) -> None:
+        official = AsyncMock()
+        resp = MagicMock()
+        resp.json.return_value = {
+            "items": [
+                {
+                    "uid": "team-ws",
+                    "tenant_id": "tenant-1",
+                    "meta_data": {"kind": "team"},
+                },
+                {
+                    "uid": "personal-ws",
+                    "tenant_id": "tenant-1",
+                    "meta_data": {"kind": "personal"},
+                },
+                {
+                    "uid": "other-personal",
+                    "tenant_id": "tenant-2",
+                    "meta_data": {"kind": "personal"},
+                },
+            ]
+        }
+        official.get = AsyncMock(return_value=resp)
+        client = UssoAccountsClient(official)
+
+        result = await client.get_personal_workspace(
+            user_id="user-1", tenant_id="tenant-1"
+        )
+
+        assert result["uid"] == "personal-ws"
+        official.get.assert_awaited_once_with(
+            "/api/sso/v1/workspaces",
+            params={"offset": 0, "limit": 100},
+            timeout=20,
+        )
+
+    @pytest.mark.asyncio
     async def test_add_workspace_member_posts_user_and_role(self) -> None:
         official = AsyncMock()
         resp = MagicMock()

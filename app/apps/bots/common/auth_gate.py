@@ -8,6 +8,7 @@ from enum import StrEnum
 
 from apps.accounts.handlers import (
     get_existing_usso_user,
+    get_personal_workspace_id,
     usso_identifier_type_for_platform,
 )
 from apps.bots.common import models
@@ -59,9 +60,8 @@ async def _sync_usso_state_and_workspace(
     workspace_id comes straight off the already-fetched usso_user (USSO
     auto-provisions a user's personal workspace, uid == user.uid, on user
     creation -- no separate lookup, no impersonation needed). A user with
-    no personal workspace yet (e.g. created before it existed) just has
-    workspace_id=None here, and billing/visibility fall back to their
-    personal (non-workspace) context, same as today.
+    For older users whose response omits workspace_id, the service-account
+    workspace listing resolves the real personal workspace instead.
 
     This only fills in a *first-time default* -- it never overwrites an
     already-set telegram_workspace_id. usso_user here only carries the
@@ -72,11 +72,12 @@ async def _sync_usso_state_and_workspace(
     a fresh full-membership check against workspace_ids instead.
     """
     usso_uid = str(usso_user.uid)
-    # USSO may not return a provisioned personal workspace for older users.
-    # Billing and AI processing still need one stable personal scope, so the
-    # user's own UID is the canonical fallback. An explicitly selected team
-    # workspace remains untouched below.
-    workspace_id = getattr(usso_user, "workspace_id", None) or usso_uid
+    workspace_id = getattr(usso_user, "workspace_id", None)
+    if not workspace_id:
+        workspace_id = await get_personal_workspace_id(
+            usso_uid,
+            getattr(usso_user, "tenant_id", None),
+        )
     dirty = False
     if bot_user.usso_user_id != usso_uid or not bot_user.usso_synced:
         bot_user.usso_user_id = usso_uid

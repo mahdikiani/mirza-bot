@@ -105,6 +105,38 @@ class UssoAccountsClient:
         resp.raise_for_status()
         return resp.json()
 
+    async def get_personal_workspace(
+        self, *, user_id: str, tenant_id: str | None = None
+    ) -> dict | None:
+        """
+        Find the real personal workspace for a user.
+
+        The bot authenticates as a service account, so ``/workspaces/mine``
+        describes the service account rather than the end user. USSO marks
+        personal workspaces in metadata; tenant filtering is performed here
+        because the generic list route does not expose an owner field.
+        """
+        resp = await self._client.get(
+            "/api/sso/v1/workspaces",
+            params={"offset": 0, "limit": 100},
+            timeout=20,
+        )
+        resp.raise_for_status()
+        items = resp.json().get("items", [])
+        candidates = [
+            item
+            for item in items
+            if (item.get("meta_data") or {}).get("kind") == "personal"
+            and (not tenant_id or item.get("tenant_id") == tenant_id)
+        ]
+        if not candidates:
+            return None
+        # Personal workspaces use their own UID as the owner member UID. Keep
+        # user_id in the signature so this can switch to a server-side owner
+        # filter when USSO exposes one, without changing bot call sites.
+        del user_id
+        return candidates[0]
+
     async def add_workspace_member(
         self, workspace_id: str, user_id: str, role: str = "member"
     ) -> dict:
